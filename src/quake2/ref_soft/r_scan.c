@@ -42,8 +42,13 @@ void D_WarpScreen(void) {
   byte **row;
 
   static int cached_width, cached_height;
+#ifdef PLATFORM_RP2350 // the screen is 320x240 (saves 10 KB of SRAM)
+  static byte *rowptr[240 + AMP2 * 2];
+  static int column[320 + AMP2 * 2];
+#else
   static byte *rowptr[1200 + AMP2 * 2];
   static int column[1600 + AMP2 * 2];
+#endif
 
   //
   // these are constant over resolutions, and can be saved

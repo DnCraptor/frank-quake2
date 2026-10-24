@@ -213,8 +213,13 @@ static inline int R_Ceil (float x)
 #define MAXWORKINGVERTS (MAXVERTS+4)    // max points in an intermediate
 										//  polygon (while processing)
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
+#ifdef PLATFORM_RP2350		// the mode is fixed at 320x240 (SWimp_SetMode): the per row
+#define MAXHEIGHT       240	// and per column tables fit in SRAM
+#define MAXWIDTH        320
+#else
 #define MAXHEIGHT       1200
 #define MAXWIDTH        1600
+#endif
 
 #define INFINITE_DISTANCE       0x10000         // distance that's always guaranteed to
 										//  be farther away than anything in

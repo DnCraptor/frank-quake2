@@ -33,7 +33,7 @@
 #include "pico/time.h"
 
 #define FIRST_FD   3
-#define MAX_FILES  16
+#define MAX_FILES  12 /* the 3 paks + their pool of 8 handles + one */
 #define CLMT_WORDS 32 /* a contiguous file needs 4; fragmented ones get a heap map */
 #define STAGING    4096
 
