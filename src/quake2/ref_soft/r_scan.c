@@ -33,6 +33,7 @@ the sine warp, to keep the edges from wrapping
 =============
 */
 void D_WarpScreen(void) {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
   int w, h;
   int u, v, u2, v2;
   byte *dest;

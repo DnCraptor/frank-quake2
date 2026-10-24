@@ -70,7 +70,9 @@ float fv;
 static int miplevel;
 
 float scale_for_mip;
+#ifndef PLATFORM_RP2350
 R_TLS int ubasestep, errorterm, erroradjustup, erroradjustdown;
+#endif
 
 // FIXME: should go away
 extern void R_RotateBmodel(void);

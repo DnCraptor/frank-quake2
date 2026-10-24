@@ -73,6 +73,7 @@ smoothly scrolled off.
 */
 void Draw_Char (int x, int y, int num)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	byte			*dest;
 	byte			*source;
 	int				drawline;	
@@ -162,6 +163,7 @@ Draw_StretchPicImplementation
 */
 void Draw_StretchPicImplementation (int x, int y, int w, int h, image_t	*pic)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	byte			*dest, *source;
 	int				v, u, sv;
 	int				height;
@@ -252,6 +254,7 @@ Draw_Pic
 */
 void Draw_Pic (int x, int y, char *name)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	image_t			*pic;
 	byte			*dest, *source;
 	int				v, u;
@@ -344,6 +347,7 @@ refresh window.
 */
 void Draw_TileClear (int x, int y, int w, int h, char *name)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	int			i, j;
 	byte		*psrc;
 	byte		*pdest;
@@ -393,6 +397,7 @@ Fills a box of pixels with a single color
 */
 void Draw_Fill (int x, int y, int w, int h, int c)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	byte			*dest;
 	int				u, v;
 
@@ -427,6 +432,7 @@ Draw_FadeScreen
 */
 void Draw_FadeScreen (void)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	int			x,y;
 	byte		*pbuf;
 	int	t;

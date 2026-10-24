@@ -1110,6 +1110,7 @@ void R_GammaCorrectAndSetPalette(const unsigned char *palette) {
 ** R_CinematicSetPalette
 */
 void R_CinematicSetPalette(const unsigned char *palette) {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
   byte palette32[1024];
   int i, j, w;
   int *d;

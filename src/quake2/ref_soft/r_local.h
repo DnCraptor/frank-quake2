@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdarg.h>
 
 #include "../client/ref.h"
+#include "../quakegeneric.h"
 
 #define REF_VERSION     "SOFT 0.01"
 
@@ -143,8 +144,23 @@ extern oldrefdef_t      r_refdef;
 
 // ESP32: per core data of the code that both cores run (the alias triangle
 // rasterizer); r_part is the core's part of the work (QG_Parallel2): 0 or 1
+#ifdef PLATFORM_RP2350
+// RP2350: GCC emulates __thread with a call per access (__emutls_get_address),
+// too slow for the rasterizer: the per core state is in r_core_state[core],
+// the variables are macros. R_Core() reads the core number (SIO CPUID); the
+// asm is not volatile, so the compiler reads it once per function.
+static inline int R_Core (void)
+{
+	int c;
+	__asm__ ("ldr %0, [%1]" : "=r"(c) : "r"(0xd0000000));
+	return c;
+}
+#define R_TLS
+#define r_part	(r_core_state[R_Core ()].part)
+#else
 #define R_TLS __thread
 extern R_TLS int r_part;
+#endif
 
 // ESP32: 1 / x with the FPU reciprocal approximation and two Newton steps
 // (the compiler calls the ROM software division otherwise, __divsf3)
@@ -599,7 +615,9 @@ extern void TransformVector (vec3_t in, vec3_t out);
 extern void SetUpForLineScan(fixed8_t startvertu, fixed8_t startvertv,
 	fixed8_t endvertu, fixed8_t endvertv);
 
+#ifndef PLATFORM_RP2350
 extern R_TLS int      ubasestep, errorterm, erroradjustup, erroradjustdown;
+#endif
 
 //===========================================================================
 
@@ -722,7 +740,9 @@ extern int      c_faceclip;
 extern int      r_polycount;
 extern int      r_wholepolycount;
 
+#ifndef PLATFORM_RP2350
 extern R_TLS int                      ubasestep, errorterm, erroradjustup, erroradjustdown;
+#endif
 
 extern fixed16_t        sadjust, tadjust;
 extern fixed16_t        bbextents, bbextentt;
@@ -767,7 +787,22 @@ typedef struct
 	finalvert_t *a, *b, *c;
 } aliastriangleparms_t;
 
+#ifdef PLATFORM_RP2350
+struct r_core_s
+{
+	int		part;		// r_part
+	int		ubasestep, errorterm, erroradjustup, erroradjustdown;
+	aliastriangleparms_t aliastriangleparms;
+};
+extern struct r_core_s r_core_state[2];
+#define ubasestep			(r_core_state[R_Core ()].ubasestep)
+#define errorterm			(r_core_state[R_Core ()].errorterm)
+#define erroradjustup		(r_core_state[R_Core ()].erroradjustup)
+#define erroradjustdown		(r_core_state[R_Core ()].erroradjustdown)
+#define aliastriangleparms	(r_core_state[R_Core ()].aliastriangleparms)
+#else
 extern R_TLS aliastriangleparms_t aliastriangleparms;
+#endif
 
 void R_DrawTriangle( void );
 //void R_DrawTriangle (finalvert_t *index0, finalvert_t *index1, finalvert_t *index2);

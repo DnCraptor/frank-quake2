@@ -29,8 +29,12 @@ int	rand1k[] = {
 
 #define MASK_1K	0x3FF
 
+#ifdef PLATFORM_RP2350
+struct r_core_s	r_core_state[2];	// per core state shared with r_alias, r_aclip, r_edge
+#else
 R_TLS int		rand1k_index = 0;
 R_TLS int		r_part;		// 0: core of the game, 1: the other one (QG_Parallel2)
+#endif
 
 // TODO: put in span spilling to shrink list size
 // !!! if this is changed, it must be changed in d_polysa.s too !!!
@@ -63,9 +67,81 @@ typedef struct {
 
 // ESP32: R_TLS: the triangle rasterizer state is per core, both cores draw
 // the triangles of a model (R_AliasPreparePoints)
+#ifndef PLATFORM_RP2350
 R_TLS aliastriangleparms_t aliastriangleparms;
 
 R_TLS int	r_p0[6], r_p1[6], r_p2[6];
+#else
+// RP2350: the rasterizer state of each core (see R_Core in r_local.h)
+typedef struct
+{
+	int		rand1k_index;
+	int		r_p0[6], r_p1[6], r_p2[6];
+	int		d_xdenom;
+	const edgetable	*pedgetable;
+	int		a_sstepxfrac, a_tstepxfrac, r_lstepx, a_ststepxwhole;
+	int		r_sstepx, r_tstepx, r_lstepy, r_sstepy, r_tstepy;
+	int		r_zistepx, r_zistepy;
+	int		d_aspancount, d_countextrastep;
+	spanpackage_t	*a_spans;
+	spanpackage_t	*d_pedgespanpackage;
+	int		ystart;
+	byte	*d_pdest, *d_ptex;
+	short	*d_pz;
+	int		d_sfrac, d_tfrac, d_light, d_zi;
+	int		d_ptexextrastep, d_sfracextrastep;
+	int		d_tfracextrastep, d_lightextrastep, d_pdestextrastep;
+	int		d_lightbasestep, d_pdestbasestep, d_ptexbasestep;
+	int		d_sfracbasestep, d_tfracbasestep;
+	int		d_ziextrastep, d_zibasestep;
+	int		d_pzextrastep, d_pzbasestep;
+} polyse_core_t;
+static polyse_core_t	ps_core[2];
+#define PS					(ps_core[R_Core ()])
+#define rand1k_index		(PS.rand1k_index)
+#define r_p0				(PS.r_p0)
+#define r_p1				(PS.r_p1)
+#define r_p2				(PS.r_p2)
+#define d_xdenom			(PS.d_xdenom)
+#define pedgetable			(PS.pedgetable)
+#define a_sstepxfrac		(PS.a_sstepxfrac)
+#define a_tstepxfrac		(PS.a_tstepxfrac)
+#define r_lstepx			(PS.r_lstepx)
+#define a_ststepxwhole		(PS.a_ststepxwhole)
+#define r_sstepx			(PS.r_sstepx)
+#define r_tstepx			(PS.r_tstepx)
+#define r_lstepy			(PS.r_lstepy)
+#define r_sstepy			(PS.r_sstepy)
+#define r_tstepy			(PS.r_tstepy)
+#define r_zistepx			(PS.r_zistepx)
+#define r_zistepy			(PS.r_zistepy)
+#define d_aspancount		(PS.d_aspancount)
+#define d_countextrastep	(PS.d_countextrastep)
+#define a_spans				(PS.a_spans)
+#define d_pedgespanpackage	(PS.d_pedgespanpackage)
+#define ystart				(PS.ystart)
+#define d_pdest				(PS.d_pdest)
+#define d_ptex				(PS.d_ptex)
+#define d_pz				(PS.d_pz)
+#define d_sfrac				(PS.d_sfrac)
+#define d_tfrac				(PS.d_tfrac)
+#define d_light				(PS.d_light)
+#define d_zi				(PS.d_zi)
+#define d_ptexextrastep		(PS.d_ptexextrastep)
+#define d_sfracextrastep	(PS.d_sfracextrastep)
+#define d_tfracextrastep	(PS.d_tfracextrastep)
+#define d_lightextrastep	(PS.d_lightextrastep)
+#define d_pdestextrastep	(PS.d_pdestextrastep)
+#define d_lightbasestep		(PS.d_lightbasestep)
+#define d_pdestbasestep		(PS.d_pdestbasestep)
+#define d_ptexbasestep		(PS.d_ptexbasestep)
+#define d_sfracbasestep		(PS.d_sfracbasestep)
+#define d_tfracbasestep		(PS.d_tfracbasestep)
+#define d_ziextrastep		(PS.d_ziextrastep)
+#define d_zibasestep		(PS.d_zibasestep)
+#define d_pzextrastep		(PS.d_pzextrastep)
+#define d_pzbasestep		(PS.d_pzbasestep)
+#endif
 
 static int *R_EdgeVert (int i)
 {
@@ -75,9 +151,11 @@ static int *R_EdgeVert (int i)
 byte		*d_pcolormap;
 
 int			d_aflatcolor;
+#ifndef PLATFORM_RP2350
 R_TLS int			d_xdenom;
 
 R_TLS const edgetable	*pedgetable;
+#endif
 
 static const edgetable	edgetables[12] = {
 	{0, 1, 0, 2, -1, 2, 0, 1, 2 },
@@ -94,6 +172,7 @@ static const edgetable	edgetables[12] = {
 	{0, 1, 0, 2, -1, 1, 0, 1, -1},
 };
 
+#ifndef PLATFORM_RP2350
 // FIXME: some of these can become statics
 R_TLS int				a_sstepxfrac, a_tstepxfrac, r_lstepx, a_ststepxwhole;
 R_TLS int				r_sstepx, r_tstepx, r_lstepy, r_sstepy, r_tstepy;
@@ -112,6 +191,7 @@ R_TLS int						d_lightbasestep, d_pdestbasestep, d_ptexbasestep;
 R_TLS int						d_sfracbasestep, d_tfracbasestep;
 R_TLS int						d_ziextrastep, d_zibasestep;
 R_TLS int						d_pzextrastep, d_pzbasestep;
+#endif
 
 typedef struct {
 	int		quotient;

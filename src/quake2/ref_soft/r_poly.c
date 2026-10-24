@@ -562,6 +562,7 @@ int R_ClipPolyFace(int nump, clipplane_t *pclipplane) {
 ** R_PolygonDrawSpans
 */
 void R_PolygonDrawSpans(espan_t *pspan, qboolean iswater) {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
   int count;
   fixed16_t snext, tnext;
   float sdivz, tdivz, zi, z, du, dv, spancountminus1;

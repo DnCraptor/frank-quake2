@@ -226,7 +226,8 @@ typedef struct
 	FILE	*f;
 	pack_t	*pak;
 } pakhandle_t;
-static pakhandle_t	pak_pool[PAK_POOL_SIZE];
+// RP2350: in SRAM, exclusive accesses (the atomics) do not work in PSRAM
+static pakhandle_t	pak_pool[PAK_POOL_SIZE] SRAM_BSS;
 
 static int FS_PoolClaim (int i, int from)
 {

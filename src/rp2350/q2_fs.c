@@ -334,3 +334,35 @@ int closedir(DIR *d) {
     free(d);
     return 0;
 }
+
+/* ---- "sdtest": raw read throughput of the SD card (FatFs, into SRAM) ---- */
+
+void q2_sd_bench(void) {
+    static FIL f;
+    static const UINT sizes[] = {512, 4096, STAGING};
+    if (f_open(&f, "/quake2/baseq2/pak0.pak", FA_READ) != FR_OK) {
+        printf("sdtest: no pak0.pak\n");
+        return;
+    }
+    for (unsigned k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++) {
+        f_lseek(&f, (FSIZE_t)k * 8 * 1024 * 1024);
+        uint32_t total = 0, t0 = time_us_32();
+        while (total < 1024 * 1024) {
+            UINT got = 0;
+            if (f_read(&f, staging, sizes[k], &got) != FR_OK || !got) break;
+            total += got;
+        }
+        uint32_t us = time_us_32() - t0;
+        printf("sdtest: %u-byte reads: %lu KB in %lu ms, %lu KB/s\n", sizes[k], (unsigned long)(total / 1024),
+               (unsigned long)(us / 1000), (unsigned long)((uint64_t)total * 1000000 / 1024 / (us + 1)));
+    }
+    /* random 4 KB reads, as the paks are read */
+    uint32_t t0 = time_us_32();
+    for (int i = 0; i < 64; i++) {
+        UINT got;
+        f_lseek(&f, ((FSIZE_t)i * 2654435761u % (FSIZE_t)(f_size(&f) - 8192)) & ~(FSIZE_t)511);
+        f_read(&f, staging, 4096, &got);
+    }
+    printf("sdtest: 64 random 4 KB reads: %lu us each\n", (unsigned long)((time_us_32() - t0) / 64));
+    f_close(&f);
+}

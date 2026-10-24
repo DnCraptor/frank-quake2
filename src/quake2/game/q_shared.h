@@ -1228,4 +1228,12 @@ extern int vidref_val;
 #define EXT_RAM_BSS
 #endif
 
+// RP2350: the engine's .bss is in PSRAM outside the renderer; SRAM_BSS keeps
+// a variable in SRAM (needed for atomics: no exclusive accesses in PSRAM)
+#ifdef PLATFORM_RP2350
+#define SRAM_BSS __attribute__((section(".sram_bss")))
+#else
+#define SRAM_BSS
+#endif
+
 #endif //Q_SHARED_H

@@ -26,8 +26,6 @@ void *q2_malloc(size_t n);
 void q2_free(void *p);
 void *q2_realloc(void *p, size_t n);
 
-/* tls.c */
-size_t q2_tls_size(void);
 
 /* q2_video.c */
 void q2_video_init(void);
@@ -35,6 +33,7 @@ uint8_t *q2_video_backbuffer(void);
 uint8_t *q2_video_present(void);
 void q2_video_set_palette(const uint8_t *rgb, int stride);
 void q2_video_wait_vsync(void);
+void q2_video_wait_back(void);
 extern volatile uint32_t q2_vsync_count;
 void q2_con_show(void);
 void q2_con_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));

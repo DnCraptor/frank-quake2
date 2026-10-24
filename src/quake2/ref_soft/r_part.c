@@ -595,6 +595,7 @@ void R_DrawParticle( void )
 */
 void R_DrawParticles (void)
 {
+	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 	particle_t *p;
 	int         i;
 	extern unsigned long fpu_sp24_cw, fpu_chop_cw;

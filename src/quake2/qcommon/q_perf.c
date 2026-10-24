@@ -190,6 +190,14 @@ static void Perf_f (void)
 		for (j = 0; j < PERF_SLOTS; j++)
 			if (sum[j])
 				Com_Printf (" %s %.0f", names[j], sum[j] / perf_count);
+		{
+			int ev[PERF_EVENTS] = { 0 };
+			for (i = 0; i < perf_count; i++)
+				for (j = 0; j < PERF_EVENTS; j++)
+					ev[j] += perf_frames[i].ev[j];
+			Com_Printf (" | total: opens %i kb %i sounds %i images %i", ev[PERF_EV_OPENS], ev[PERF_EV_KB],
+				ev[PERF_EV_SOUNDS], ev[PERF_EV_IMAGES]);
+		}
 		Com_Printf ("\n");
 	}
 	else

@@ -3,9 +3,10 @@
  *
  * Linker script, derived from the pico-sdk 2.2 memmap_default.ld (through
  * frank-castle's memmap_castle.ld):
- *  - the big engine tables (EXT_RAM_BSS, i.e. .ext_ram.bss, as on the
- *    ESP32) and .psram_bss/.psram_data live in PSRAM (0x11000000); the rest
- *    of the engine's .bss stays in SRAM, as in internal RAM on the ESP32;
+ *  - in PSRAM (0x11000000): the big engine tables (EXT_RAM_BSS, i.e.
+ *    .ext_ram.bss, as on the ESP32), .psram_bss/.psram_data, and all the
+ *    .data/.bss of the engine outside the renderer; the renderer's own
+ *    state stays in SRAM (with the frame buffers and the z-buffer);
  *  - IRAM_ATTR code (.time_critical) runs from SRAM;
  *  - the firmware must end below the flash asset image (Q2_ASSETS_OFFSET,
  *    passed as __q2_assets_offset);
@@ -161,6 +162,13 @@ SECTIONS
     .psram_data : {
         . = ALIGN(4);
         __psram_data_start__ = .;
+        /* the engine outside the renderer: game, client, server, common */
+        *quake2_core.dir/src/quake2/client/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/game/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/server/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/qcommon/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/other/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/net/*.o(.data .data.*)
         *(.psram_data*)
         . = ALIGN(4);
         __psram_data_end__ = .;
@@ -170,6 +178,12 @@ SECTIONS
     .psram_bss (NOLOAD) : {
         . = ALIGN(4);
         __psram_bss_start__ = .;
+        *quake2_core.dir/src/quake2/client/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/game/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/server/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/qcommon/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/other/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/net/*.o(.bss .bss.* COMMON)
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.ext_ram.bss*)))
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.psram_bss*)))
         . = ALIGN(4);
@@ -235,6 +249,7 @@ SECTIONS
         . = ALIGN(4);
         __tbss_end = .;
 
+        *(.sram_bss*)
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.bss*)))
         *(COMMON)
         PROVIDE(__global_pointer$ = . + 2K);

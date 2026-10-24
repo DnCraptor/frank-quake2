@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * PC-sampling profiler for core 0 ("prof SECONDS" on the Quake console).
- * A TIMER1 alarm interrupts core 0 at 4 kHz and the naked handler takes the
+ * A TIMER1 alarm interrupts core 0 at 1 kHz and the naked handler takes the
  * interrupted PC from the exception frame (after frank-castle's profiler).
- * When done the samples are sorted and printed as a histogram of 32-byte
- * buckets ("PROF <addr> <count>"), short enough to survive a lossy UART;
+ * When done the samples are sorted and printed as a histogram of
+ * addresses ("PROF <addr> <count>"), short enough to survive a lossy UART;
  * tools/prof.py maps the buckets to functions.
  */
 
@@ -20,9 +20,9 @@
 #include "pico/stdlib.h"
 #include "q2_platform.h"
 
-#define PROF_HZ   4000
-#define PROF_MAX  32768
-#define BUCKET    5 /* log2 bytes */
+#define PROF_HZ   1000
+#define PROF_MAX  8192 /* 32 KB: 8 s */
+#define BUCKET    1 /* log2 bytes: exact (Thumb instructions are 2-byte aligned) */
 
 static uint32_t samples[PROF_MAX] __attribute__((section(".psram_bss.prof")));
 static volatile uint32_t nsamples, want;

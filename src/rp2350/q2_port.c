@@ -18,6 +18,7 @@
 #include "psx_video.h"
 #include "q2_platform.h"
 #include "qcommon/q_perf.h"
+#include "quakegeneric.h"
 #include "ref_soft/r_local.h"
 #include "usbhid.h"
 
@@ -58,7 +59,15 @@ void __not_in_flash_func(q2_core1_main)(void) {
     }
 }
 
+/* QG_NEED_BACK: the pending page flip happens at the next vsync */
+void QG_WaitBack(void) {
+    Perf_Push(PERF_PRESENT);
+    q2_video_wait_back();
+    Perf_Pop();
+}
+
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
+    QG_NEED_BACK(); /* both users (spans, model triangles) draw */
 #ifdef Q2_SINGLE_CORE
     const bool two = false;
 #else

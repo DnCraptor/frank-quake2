@@ -18,4 +18,11 @@ const void *QG_FindAsset(const char *name, int *size);
 // core)
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg);
 
+// RP2350: after a page flip the buffer to draw into is still on screen until
+// the next vsync; the renderer calls this before its first pixel write, so
+// that the frame's other work (game, BSP, edges) overlaps the wait
+extern volatile int qg_back_busy;
+void QG_WaitBack(void);
+#define QG_NEED_BACK()	do { if (qg_back_busy) QG_WaitBack (); } while (0)
+
 #endif

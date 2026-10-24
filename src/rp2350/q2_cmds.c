@@ -5,13 +5,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Console commands of the port: "prof SECONDS" (PC sampling, q2_prof.c),
- * "sysmem" (the C heaps).
+ * "sysmem" (the C heaps), "sdtest" (SD card read speed).
  */
 
 #include "qcommon/qcommon.h"
 #include "q2_platform.h"
 
 void q2_prof_start(int seconds);
+void q2_sd_bench(void);
 
 static void Prof_f(void) {
     q2_prof_start(Cmd_Argc() > 1 ? atoi(Cmd_Argv(1)) : 4);
@@ -24,4 +25,5 @@ static void Sysmem_f(void) {
 void q2_add_commands(void) {
     Cmd_AddCommand("prof", Prof_f);
     Cmd_AddCommand("sysmem", Sysmem_f);
+    Cmd_AddCommand("sdtest", q2_sd_bench);
 }

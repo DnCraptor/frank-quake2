@@ -22,6 +22,9 @@ set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: d
 # The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
 set(Q2_ASSETS_OFFSET "0x1C0000" CACHE STRING "Flash offset of the asset image")
 set(Q2_SAMPLE_RATE "11025" CACHE STRING "Sound output rate: 11025 or 22050")
+# 3: the game never waits for vsync to free a buffer, but the 76.8 KB it
+# takes leaves no room for the z-buffer in SRAM, which is worth more
+set(Q2_FB_COUNT "2" CACHE STRING "8-bit framebuffers in SRAM: 2 or 3")
 # Native USB is always the keyboard/mouse host; debug console is UART0 (GPIO0/1).
 set(USB_HID_ENABLED ON)
 
@@ -104,6 +107,7 @@ set(Q2_DEFINES
     Q2_VERSION="${Q2_VERSION}"
     Q2_ASSETS_OFFSET=${Q2_ASSETS_OFFSET}
     Q2_SAMPLE_RATE=${Q2_SAMPLE_RATE}
+    Q2_FB_COUNT=${Q2_FB_COUNT}
 )
 
 # Board bring-up and the C heap, shared by the diag and game firmware
@@ -178,7 +182,10 @@ add_library(quake2_core OBJECT ${Q2_CORE_SOURCES} ${Q2_REF_SOFT_SOURCES} ${Q2_GA
 target_include_directories(quake2_core PRIVATE ${Q2_DIR} src/rp2350/compat src/rp2350 src/common)
 # ESP_PLATFORM: the ESP32 code paths of the engine (pak handle pool, big
 # stdio buffers, EXT_RAM_BSS tables in PSRAM) apply here as they are.
-target_compile_definitions(quake2_core PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1 ${Q2_DEFINES})
+# QUAKE_HEAP_RESERVE: PSRAM left to the C heap next to the engine arena
+# (stdio buffers of the open paks, FatFs cluster maps, the profiler)
+target_compile_definitions(quake2_core PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1 ${Q2_DEFINES}
+    QUAKE_HEAP_RESERVE=196608)
 # 1997 C: no warnings. The engine expects signed chars (ARM's are unsigned).
 # -fsingle-precision-constant: the FPU is single precision only.
 target_compile_options(quake2_core PRIVATE -w -fsigned-char -fno-strict-aliasing
@@ -194,7 +201,6 @@ add_executable(frank-quake2
     src/rp2350/q2_sound.c
     src/rp2350/q2_input.c
     src/rp2350/q2_fs.c
-    src/rp2350/tls.c
     src/rp2350/q2_prof.c
     src/rp2350/q2_cmds.c
     $<TARGET_OBJECTS:quake2_core>
@@ -207,6 +213,7 @@ target_include_directories(frank-quake2 PRIVATE ${Q2_DIR})
 target_compile_definitions(frank-quake2 PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1)
 target_compile_options(frank-quake2 PRIVATE -fsigned-char)
 target_compile_definitions(frank-quake2 PRIVATE PICO_MALLOC_PANIC=0)
+target_compile_definitions(frank-quake2 PRIVATE ${Q2_DEFINES})
 target_link_libraries(frank-quake2 q2_platform hardware_dma hardware_xip_cache pico_multicore pico_sync)
 pico_set_linker_script(frank-quake2 ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
 target_link_options(frank-quake2 PRIVATE

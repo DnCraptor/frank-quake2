@@ -88,16 +88,22 @@ void q2_video_wait_vsync(void) {
 }
 
 /* The finished back buffer is shown from the next vsync; returns the buffer
- * to draw the next frame into. With two buffers that is the one being shown,
- * so it waits for the flip. */
+ * to draw the next frame into. With two buffers that is the one still on
+ * screen until then: qg_back_busy tells the renderer to wait for the flip
+ * (QG_NEED_BACK) before its first pixel write, not here. */
+volatile int qg_back_busy;
+
 uint8_t *q2_video_present(void) {
     while (fb_pending >= 0) tight_loop_contents(); /* one flip in flight at most */
+    qg_back_busy = 0;
     __dmb();
-    fb_pending = fb_back;
 #if Q2_FB_COUNT == 2
-    while (fb_pending >= 0) tight_loop_contents();
-    fb_back = fb_front ^ 1;
+    int next = fb_front; /* != fb_back */
+    fb_pending = fb_back;
+    fb_back = next;
+    qg_back_busy = 1;
 #else
+    fb_pending = fb_back;
     int f = fb_front, p = fb_pending;
     for (int i = 0; i < Q2_FB_COUNT; i++)
         if (i != f && i != p && i != fb_back) {
@@ -106,6 +112,12 @@ uint8_t *q2_video_present(void) {
         }
 #endif
     return fb[fb_back];
+}
+
+/* the back buffer is off screen once the pending flip happened */
+void q2_video_wait_back(void) {
+    while (fb_pending >= 0) tight_loop_contents();
+    qg_back_busy = 0;
 }
 
 /* palette: 256 RGB triplets, stride bytes apart */

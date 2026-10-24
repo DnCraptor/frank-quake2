@@ -3,16 +3,21 @@
 # capture the boot log.   tools/dev.sh [SECONDS] [TARGET]
 set -e
 cd "$(dirname "$0")/.."
-D=${Q2_UART:-/dev/cu.usbmodem11102}
 SECS=${1:-20}
 TARGET=${2:-frank-quake2}
-make -C build -j10 "$TARGET" 2>&1 | grep -E "error|warning: .*implicit|FLASH:|  RAM:" || true
-stty -f "$D" 115200 raw -echo cs8 -cstopb -parenb clocal
-printf '~BOOT~' > "$D"
-for i in $(seq 1 30); do picotool info >/dev/null 2>&1 && break; sleep 0.3; done
-picotool load "build/${TARGET}.uf2" >/dev/null
-(timeout "$SECS" cat "$D" > build/boot.log &)
-sleep 0.3
+if ! make -C build -j10 "$TARGET" > build/make.log 2>&1; then
+    grep -E "error" build/make.log | head -20
+    echo "BUILD FAILED"
+    exit 1
+fi
+grep -E "warning: .*implicit|FLASH:|  RAM:" build/make.log || true
+picotool info >/dev/null 2>&1 || python3 tools/uart.py bootsel >/dev/null
+for i in $(seq 1 40); do picotool info >/dev/null 2>&1 && break; sleep 0.25; done
+if ! picotool load "build/${TARGET}.uf2" >/dev/null 2>&1; then
+    echo "FLASH FAILED (board not in BOOTSEL?)"
+    exit 1
+fi
+echo "flashed build/${TARGET}.uf2"
 picotool reboot >/dev/null
-sleep "$SECS"
+python3 tools/uart.py cap "$SECS" build/boot.log
 cat build/boot.log
