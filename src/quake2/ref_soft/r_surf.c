@@ -162,7 +162,7 @@ void R_DrawSurface (void)
 		cols.basetptr = basetptr;
 		cols.soffset = soffset;
 		cols.smax = smax;
-		cols.dest = pcolumndest;
+		cols.dest = QG_WriteThrough (pcolumndest, r_drawsurf.rowbytes * r_drawsurf.surfheight);
 		cols.mip = r_drawsurf.surfmip;
 		if (r_numhblocks * r_numvblocks >= 16 && r_numhblocks >= 2)
 			QG_Parallel2 (R_DrawSurfaceColumns, &cols);

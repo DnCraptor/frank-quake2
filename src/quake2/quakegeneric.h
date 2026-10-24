@@ -25,6 +25,11 @@ extern volatile unsigned qg_split_mask;
 extern volatile int qg_split_k;			// bits set in qg_split_mask (of 16)
 #define QG_PART_OF(i)	((qg_split_mask >> ((i) & 15)) & 1)
 
+// RP2350: the address to write [p, p + size) through without the cache
+// (PSRAM: a cache line fill per written line saved); the range is first
+// written back and dropped from the cache. p itself elsewhere.
+void *QG_WriteThrough(void *p, int size);
+
 // RP2350: after a page flip the buffer to draw into is still on screen until
 // the next vsync; the renderer calls this before its first pixel write, so
 // that the frame's other work (game, BSP, edges) overlaps the wait

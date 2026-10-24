@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "hardware/sync.h"
+#include "hardware/xip_cache.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "psx_video.h"
@@ -132,6 +133,18 @@ void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
     part_us[1] += core1_part_us;
     parallelWaitUs += time_us_32() - t0;
     balance_split();
+}
+
+/* PSRAM written through its uncached alias: no line fill for the lines a
+ * surface cache build overwrites. Dirty lines in the range are written back
+ * first (a cached header can share a line), then all its lines dropped. */
+void *QG_WriteThrough(void *p, int size) {
+    uintptr_t a = (uintptr_t)p;
+    if (a < 0x11000000u || a >= 0x11800000u || size <= 0) return p;
+    uintptr_t start = a & ~(uintptr_t)7, end = (a + (uintptr_t)size + 7) & ~(uintptr_t)7;
+    xip_cache_clean_range(start - XIP_BASE, end - start);
+    xip_cache_invalidate_range(start - XIP_BASE, end - start);
+    return (void *)(a + 0x04000000u);
 }
 
 /* the "perf" recorder only records the game */
