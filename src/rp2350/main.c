@@ -133,9 +133,12 @@ int main(void) {
         q2_prof_poll();
         if (time_us_32() - stats >= 5000000) {
             stats = time_us_32();
-            printf("fps: %.1f (core 1 wait %lu ms)\n", (double)q2_take_fps(),
-                   (unsigned long)(parallelWaitUs / 1000));
+            extern volatile uint32_t core1_busy_us;
+            printf("fps: %.1f (core 0 waited %lu ms for core 1, core 1 busy %lu ms of 5000)\n",
+                   (double)q2_take_fps(), (unsigned long)(parallelWaitUs / 1000),
+                   (unsigned long)(core1_busy_us / 1000));
             parallelWaitUs = 0;
+            core1_busy_us = 0;
         }
     }
 }

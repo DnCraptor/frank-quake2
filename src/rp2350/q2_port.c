@@ -42,6 +42,7 @@ static volatile uint32_t job_seq, job_done_seq;
 static volatile bool core1_ready;
 
 int64_t parallelWaitUs; /* time the game core waited for core 1 */
+volatile uint32_t core1_busy_us; /* time core 1 spent in jobs */
 
 void __not_in_flash_func(q2_core1_main)(void) {
     platform_cyccnt_enable();
@@ -52,7 +53,9 @@ void __not_in_flash_func(q2_core1_main)(void) {
         while (job_seq == seen) __wfe();
         seen = job_seq;
         __dmb();
+        uint32_t t0 = time_us_32();
         job_fn(job_arg, 1);
+        core1_busy_us += time_us_32() - t0;
         __dmb();
         job_done_seq = seen;
         __sev();

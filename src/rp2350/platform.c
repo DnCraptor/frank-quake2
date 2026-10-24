@@ -273,12 +273,23 @@ uint32_t platform_init_clocks(void) {
     }
     if (FLASH_MAX_FREQ_MHZ > FLASH_SAFE_MHZ)
         set_flash_timings((int)(clock_get_hz(clk_sys) / 1000000), FLASH_MAX_FREQ_MHZ, FLASH_RXDELAY);
+#if PERI_CLOCK_MHZ
+    /* clk_peri (UART, SPI) from clk_sys instead of the 48 MHz USB PLL: the
+     * SD card's SPI runs at clk_peri / an even divider, 24 MHz at most from
+     * 48 MHz. The UART divisor is set again below. */
+    {
+        uint32_t sys = clock_get_hz(clk_sys);
+        uint32_t div = (sys + PERI_CLOCK_MHZ * 1000000u / 2) / (PERI_CLOCK_MHZ * 1000000u);
+        if (div < 1) div = 1;
+        clock_configure_int_divider(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, sys, div);
+    }
+#endif
     /* The UART baud divisor was computed at the boot clock. */
     stdio_init_all();
     extern void uart_buffered_init(void);
     uart_buffered_init(); /* printf must never stall the game */
     uint32_t hz = clock_get_hz(clk_sys);
-    printf("sys clock %lu Hz\n", (unsigned long)hz);
+    printf("sys clock %lu Hz, peri %lu Hz\n", (unsigned long)hz, (unsigned long)clock_get_hz(clk_peri));
     return hz;
 }
 

@@ -52,7 +52,10 @@
 #define CT_BLOCK       0x08            /* Block addressing */
 
 #define CLK_SLOW	(100 * KHZ)
-#define CLK_FAST	(30 * MHZ)
+#ifndef SDCARD_CLK_FAST_MHZ
+#define SDCARD_CLK_FAST_MHZ 30
+#endif
+#define CLK_FAST	(SDCARD_CLK_FAST_MHZ * MHZ)
 
 static volatile
 DSTATUS Stat = STA_NOINIT;	/* Physical drive status */
@@ -98,7 +101,12 @@ static void FCLK_SLOW(void)
 static void FCLK_FAST(void)
 {
 #ifndef SDCARD_PIO
-    spi_set_baudrate(SDCARD_SPI_BUS, CLK_FAST);
+    uint baud = spi_set_baudrate(SDCARD_SPI_BUS, CLK_FAST);
+    static uint said;
+    if (said != baud) {
+        said = baud;
+        printf("SD: SPI at %u kHz\n", baud / 1000);
+    }
 #endif
 }
 

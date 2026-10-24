@@ -58,6 +58,17 @@ qboolean        r_cache_thrash;         // set if surface cache is thrashing
 int         sc_size;
 surfcache_t	*sc_rover, *sc_base;
 
+#ifdef PLATFORM_RP2350
+typedef struct
+{
+	unsigned char	*basetptr;
+	int				soffset, smax;
+	unsigned char	*dest;
+	int				mip;
+} surfcols_t;
+static void R_DrawSurfaceColumns (void *arg, int part);
+#endif
+
 /*
 ===============
 R_TextureAnimation
@@ -142,6 +153,24 @@ void R_DrawSurface (void)
 		+ (tmax << 16)) % tmax) * twidth)];
 
 	pcolumndest = r_drawsurf.surfdat;
+
+#ifdef PLATFORM_RP2350
+	// RP2350: the 16-texel columns are independent, both cores draw them
+	// (even ones here, odd ones on the other core) when there are enough
+	{
+		static surfcols_t	cols;
+		cols.basetptr = basetptr;
+		cols.soffset = soffset;
+		cols.smax = smax;
+		cols.dest = pcolumndest;
+		cols.mip = r_drawsurf.surfmip;
+		if (r_numhblocks * r_numvblocks >= 16 && r_numhblocks >= 2)
+			QG_Parallel2 (R_DrawSurfaceColumns, &cols);
+		else
+			R_DrawSurfaceColumns (&cols, -1);
+		return;
+	}
+#endif
 
 	for (u=0 ; u<r_numhblocks; u++)
 	{
@@ -365,7 +394,8 @@ R_DrawSurfaceBlock8_mip3
 	}
 }*/
 static inline __attribute__((always_inline))
-void DrawSurfaceBlock8_generic(const int SHIFT)
+void DrawSurfaceBlock8_cols(const int SHIFT, const int *lightptr, const unsigned char * restrict psource,
+	unsigned char * restrict prowdest)
 {
     const int N = 1 << SHIFT;                       // 16, 8, 4, 2
     const unsigned char *colormap = (const unsigned char *)vid.colormap;
@@ -375,9 +405,6 @@ void DrawSurfaceBlock8_generic(const int SHIFT)
     const int numv      = r_numvblocks;
     const int stepback  = r_stepback;
     const unsigned char *smax = r_sourcemax;
-    const int *lightptr = r_lightptr;
-    const unsigned char * restrict psource = pbasesource;
-    unsigned char * restrict prowdest = prowdestbase;
 
     for (int v = 0; v < numv; v++)
     {
@@ -423,10 +450,46 @@ void DrawSurfaceBlock8_generic(const int SHIFT)
     }
 }
 
+#define DrawSurfaceBlock8_generic(SHIFT) \
+	DrawSurfaceBlock8_cols (SHIFT, (const int *)r_lightptr, pbasesource, prowdestbase)
+
 void IRAM_ATTR R_DrawSurfaceBlock8_mip0(void) { DrawSurfaceBlock8_generic(4); }
 void IRAM_ATTR R_DrawSurfaceBlock8_mip1(void) { DrawSurfaceBlock8_generic(3); }
 void IRAM_ATTR R_DrawSurfaceBlock8_mip2(void) { DrawSurfaceBlock8_generic(2); }
 void IRAM_ATTR R_DrawSurfaceBlock8_mip3(void) { DrawSurfaceBlock8_generic(1); }
+
+#ifdef PLATFORM_RP2350
+static void IRAM_ATTR DrawSurfaceBlock8_mip (int mip, const int *lightptr, const unsigned char *psource,
+	unsigned char *prowdest)
+{
+	switch (mip)
+	{
+	case 0: DrawSurfaceBlock8_cols (4, lightptr, psource, prowdest); break;
+	case 1: DrawSurfaceBlock8_cols (3, lightptr, psource, prowdest); break;
+	case 2: DrawSurfaceBlock8_cols (2, lightptr, psource, prowdest); break;
+	default: DrawSurfaceBlock8_cols (1, lightptr, psource, prowdest); break;
+	}
+}
+
+// the columns u with u % 2 == part (part -1: all of them); only reads the
+// globals R_DrawSurface set, so that both cores can run it
+static void IRAM_ATTR R_DrawSurfaceColumns (void *arg, int part)
+{
+	const surfcols_t *c = arg;
+	int		u, soffset = c->soffset;
+	int		blocksize = 16 >> c->mip;
+
+	for (u = 0; u < r_numhblocks; u++)
+	{
+		if (part < 0 || (u & 1) == part)
+			DrawSurfaceBlock8_mip (c->mip, (const int *)blocklights + u, c->basetptr + soffset,
+				c->dest + u * blocksize);
+		soffset += blocksize;
+		if (soffset >= c->smax)
+			soffset = 0;
+	}
+}
+#endif
 #endif
 
 

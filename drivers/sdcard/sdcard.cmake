@@ -17,5 +17,6 @@ if (NOT TARGET sdcard)
         SDCARD_PIN_SPI0_MOSI=${SD_PIN_MOSI}
         SDCARD_PIN_SPI0_MISO=${SD_PIN_MISO}
         SDCARD_PIN_SPI0_CS=${SD_PIN_CS}
+        $<$<BOOL:${SD_SPEED}>:SDCARD_CLK_FAST_MHZ=${SD_SPEED}>
     )
 endif ()

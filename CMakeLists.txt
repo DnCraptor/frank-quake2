@@ -40,6 +40,9 @@ else()
     set(CPU_VOLTAGE "VREG_VOLTAGE_1_50")
 endif()
 
+# clk_peri (UART, SD card SPI): 0 keeps the 48 MHz USB PLL (SPI 24 MHz at most)
+set(PERI_SPEED "168" CACHE STRING "clk_peri in MHz, from clk_sys (0: 48 MHz from the USB PLL)")
+set(SD_SPEED "42" CACHE STRING "SD card SPI clock in MHz (clk_peri / an even divider)")
 set(SD_PIN_SCK 6)
 set(SD_PIN_MOSI 7)
 set(SD_PIN_MISO 4)
@@ -98,6 +101,7 @@ set(Q2_DEFINES
     BOARD_${BOARD_VARIANT}
     CPU_CLOCK_MHZ=${CPU_SPEED}
     CPU_VOLTAGE=${CPU_VOLTAGE}
+    PERI_CLOCK_MHZ=${PERI_SPEED}
     PSRAM_MAX_FREQ_MHZ=${PSRAM_SPEED}
     $<$<BOOL:${PSRAM_RXDELAY}>:PSRAM_RXDELAY=${PSRAM_RXDELAY}>
     FLASH_MAX_FREQ_MHZ=${FLASH_SPEED}

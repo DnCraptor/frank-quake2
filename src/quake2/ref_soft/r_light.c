@@ -274,7 +274,11 @@ void R_LightPoint (vec3_t p, vec3_t color)
 //===================================================================
 
 
+#ifdef PLATFORM_RP2350
+unsigned		blocklights[1024];	// RP2350: in SRAM, read for every surface cache texel row
+#else
 unsigned		blocklights[1024] EXT_RAM_BSS;	// allow some very large lightmaps
+#endif
 
 /*
 ===============
