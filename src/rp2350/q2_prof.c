@@ -22,18 +22,24 @@
 
 #define PROF_HZ   1000
 #define PROF_MAX  8192 /* 32 KB: 8 s */
-#define BUCKET    1 /* log2 bytes: exact (Thumb instructions are 2-byte aligned) */
+#define BUCKET    0 /* exact; bit 0 tags the callers of memcpy/memset */
 
 static uint32_t samples[PROF_MAX] __attribute__((section(".psram_bss.prof")));
 static volatile uint32_t nsamples, want;
 static volatile bool running;
 static bool installed;
 
-void __not_in_flash_func(q2_prof_record)(uint32_t pc) {
+extern char memcpy[], memset[];
+
+/* a sample in memcpy or memset is charged to its caller (LR), tagged by
+ * bit 0 (tools/prof.py shows it as "memcpy/memset from ...") */
+void __not_in_flash_func(q2_prof_record)(uint32_t pc, uint32_t lr) {
     timer_hw_t *t = timer1_hw;
     t->intr = 1u << 0;
     if (!running) return;
     t->alarm[0] = t->timerawl + 1000000 / PROF_HZ;
+    if (pc - (uint32_t)(uintptr_t)memcpy < 0x100 || pc - (uint32_t)(uintptr_t)memset < 0x100)
+        pc = (lr & ~1u) | 1u;
     samples[nsamples++] = pc;
     if (nsamples >= want) {
         running = false;
@@ -48,6 +54,7 @@ void __attribute__((naked)) __not_in_flash_func(q2_prof_isr)(void) {
         "ite eq\n"
         "mrseq r0, msp\n"
         "mrsne r0, psp\n"
+        "ldr r1, [r0, #20]\n"
         "ldr r0, [r0, #24]\n"
         "b q2_prof_record\n");
 }

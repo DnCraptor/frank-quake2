@@ -827,7 +827,11 @@ int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
 
 void R_EdgeDrawing(void) {
   static edge_t ledges[NUMSTACKEDGES + ((CACHE_SIZE - 1) / sizeof(edge_t)) + 1] EXT_RAM_BSS;
+#ifdef PLATFORM_RP2350 // in SRAM: the edge sorting reads them for every edge of every scan line
+  static surf_t lsurfs[NUMSTACKSURFACES + ((CACHE_SIZE - 1) / sizeof(surf_t)) + 1];
+#else
   static surf_t lsurfs[NUMSTACKSURFACES + ((CACHE_SIZE - 1) / sizeof(surf_t)) + 1] EXT_RAM_BSS;
+#endif
 
   if (r_newrefdef.rdflags & RDF_NOWORLDMODEL)
     return;

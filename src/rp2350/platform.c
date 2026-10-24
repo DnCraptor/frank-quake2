@@ -235,6 +235,11 @@ void platform_report_previous_crash(void) {
 /* rxdelay counts half sys clock cycles, so a delay tuned for the final
  * clock is far too long at the boot clock: the safe timing goes in before
  * the clock is raised, the fast one after (tools: diag 'f' sweeps it). */
+/* COOLDOWN 1; 3 (0xE0007000) measured no faster for the flash */
+#ifndef FLASH_TIMING_BASE
+#define FLASH_TIMING_BASE 0x60007000u
+#endif
+
 static void __no_inline_not_in_flash_func(set_flash_timings)(int cpu_mhz, int max_mhz, int rx_override) {
     const int clock_hz = cpu_mhz * 1000000;
     const int max_flash_freq = max_mhz * 1000000;
@@ -246,7 +251,7 @@ static void __no_inline_not_in_flash_func(set_flash_timings)(int cpu_mhz, int ma
     if (clock_hz / divisor > 100000000 && clock_hz >= 166000000) rxdelay += 1;
     if (rx_override >= 0) rxdelay = rx_override;
 
-    qmi_hw->m[0].timing = 0x60007000 | rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
+    qmi_hw->m[0].timing = FLASH_TIMING_BASE | rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
                           divisor << QMI_M0_TIMING_CLKDIV_LSB;
 }
 

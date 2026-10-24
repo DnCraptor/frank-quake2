@@ -9,6 +9,10 @@
  */
 
 #include "psram_init.h"
+
+#ifndef PSRAM_COOLDOWN
+#define PSRAM_COOLDOWN 3 /* x64 clk_sys cycles the chip select stays on for a sequential access (2 bits: 3 at most) */
+#endif
 #include "hardware/structs/qmi.h"
 #include "hardware/structs/xip_ctrl.h"
 #include "hardware/clocks.h"
@@ -61,7 +65,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
 
     qmi_hw->m[1].timing = 
-        1 << QMI_M1_TIMING_COOLDOWN_LSB | 
+        PSRAM_COOLDOWN << QMI_M1_TIMING_COOLDOWN_LSB | 
         QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB | 
         max_select_val << QMI_M1_TIMING_MAX_SELECT_LSB | 
         min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB | 

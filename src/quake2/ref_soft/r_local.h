@@ -261,7 +261,11 @@ static inline int R_Ceil (float x)
 
 #define NUMSTACKEDGES           2000
 #define MINEDGES                        NUMSTACKEDGES
+#ifdef PLATFORM_RP2350
+#define NUMSTACKSURFACES        640		// in SRAM (R_EdgeDrawing); demo1 uses 588 at most
+#else
 #define NUMSTACKSURFACES        1000
+#endif
 #define MINSURFACES                     NUMSTACKSURFACES
 #define MAXSPANS                        3000
 

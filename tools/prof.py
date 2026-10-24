@@ -42,9 +42,12 @@ for line in open(log, errors="replace"):
     if not m:
         continue
     a, n = int(m.group(1), 16), int(m.group(2))
+    via = a & 1
     a &= ~1
     total += n
     f = name_of(a)
+    if via:
+        f = "memcpy/memset from " + f
     region = "sram" if a >= 0x20000000 else "flash"
     k = (f, region)
     funcs[k] = funcs.get(k, 0) + n
