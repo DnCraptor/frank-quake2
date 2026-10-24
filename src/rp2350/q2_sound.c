@@ -24,7 +24,8 @@
 #define RING_FRAMES 4096 /* power of 2: 0.37 s at 11 kHz */
 #define DMA_FRAMES  256
 
-static uint32_t ring[RING_FRAMES] __attribute__((aligned(4)));
+/* in PSRAM: only the I2S DMA IRQ (core 0) and the mixer read or write it */
+static uint32_t ring[RING_FRAMES] __attribute__((aligned(4), section(".psram_bss.sound")));
 static volatile uint32_t play_frame;
 static bool i2s_started;
 

@@ -88,6 +88,9 @@ V_AddParticle
 
 =====================
 */
+#ifdef PLATFORM_RP2350
+__attribute__((section(".time_critical.q2")))	// SRAM: every particle, every frame
+#endif
 void V_AddParticle (vec3_t org, int color, float alpha)
 {
 	particle_t	*p;

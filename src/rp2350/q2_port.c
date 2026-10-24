@@ -39,6 +39,7 @@ int QG_Microseconds(void) {
 static void (*volatile job_fn)(void *arg, int part);
 static void *volatile job_arg;
 static volatile uint32_t job_seq, job_done_seq;
+static volatile uint32_t core1_part_us; /* time of core 1's last part */
 static volatile bool core1_ready;
 
 int64_t parallelWaitUs; /* time the game core waited for core 1 */
@@ -55,7 +56,9 @@ void __not_in_flash_func(q2_core1_main)(void) {
         __dmb();
         uint32_t t0 = time_us_32();
         job_fn(job_arg, 1);
-        core1_busy_us += time_us_32() - t0;
+        uint32_t dt = time_us_32() - t0;
+        core1_part_us = dt;
+        core1_busy_us += dt;
         __dmb();
         job_done_seq = seen;
         __sev();
@@ -67,6 +70,37 @@ void QG_WaitBack(void) {
     Perf_Push(PERF_PRESENT);
     q2_video_wait_back();
     Perf_Pop();
+}
+
+/* The share of the work given to core 1: k of every 16 items (rows,
+ * triangles, columns), spread evenly. Core 0 also runs the game and takes
+ * interrupts, so an even split leaves core 1 waiting; the share follows
+ * the measured times of both parts. */
+volatile unsigned qg_split_mask = 0xaaaa;
+volatile int qg_split_k = 8;
+static uint32_t part_us[2]; /* time of each core's parts since the last balance */
+
+static void set_split(int k) {
+    unsigned m = 0;
+    for (int i = 0; i < 16; i++)
+        if (((i + 1) * k) / 16 != (i * k) / 16) m |= 1u << i;
+    qg_split_k = k;
+    qg_split_mask = m;
+}
+
+static void balance_split(void) {
+    if (part_us[0] + part_us[1] < 20000) return; /* 20 ms of parallel work */
+    int k = qg_split_k;
+    /* core 0's part longer by more than 1/16: one more item to core 1 */
+    if (part_us[0] * 16 > part_us[1] * 17 && k < 13)
+        set_split(k + 1);
+    else if (part_us[1] * 16 > part_us[0] * 17 && k > 3)
+        set_split(k - 1);
+    part_us[0] = part_us[1] = 0;
+}
+
+int q2_split_share(void) {
+    return qg_split_k;
 }
 
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
@@ -87,13 +121,17 @@ void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
     uint32_t seq = job_seq + 1;
     job_seq = seq;
     __sev();
+    uint32_t ts = time_us_32();
     fn(arg, 0);
     uint32_t t0 = time_us_32();
+    part_us[0] += t0 - ts;
     Perf_Push(PERF_PARALLEL);
     while (job_done_seq != seq) __wfe();
     __dmb();
     Perf_Pop();
+    part_us[1] += core1_part_us;
     parallelWaitUs += time_us_32() - t0;
+    balance_split();
 }
 
 /* the "perf" recorder only records the game */

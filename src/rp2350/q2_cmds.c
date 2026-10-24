@@ -18,6 +18,27 @@ static void Prof_f(void) {
     q2_prof_start(Cmd_Argc() > 1 ? atoi(Cmd_Argv(1)) : 4);
 }
 
+static void Rstats_f(void) {
+    extern int r_max_edges, r_max_surfs;
+    extern int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
+    int n = r_stat_frames ? r_stat_frames : 1;
+    Com_Printf("rstats: %d frames, max %d edges, %d surfaces; per frame: %d surface cache builds "
+               "(%d new), %d texels\n", r_stat_frames, r_max_edges, r_max_surfs, r_surf_builds / n,
+               r_surf_allocs / n, r_surf_texels / n);
+    {
+        extern unsigned r_xip_miss[], r_xip_acc[];
+        static const char *names[] = {"outside", "setup", "world", "bmodels", "scan edges",
+                                      "entities", "particles", "rest", "D_DrawSurfaces"};
+        for (int i = 0; i < 9; i++)
+            Com_Printf("  xip %-14s %8u k acc %7u k miss (%u%%)\n", names[i], r_xip_acc[i] / 1000,
+                       r_xip_miss[i] / 1000, r_xip_acc[i] ? (unsigned)((uint64_t)r_xip_miss[i] * 100 / r_xip_acc[i]) : 0);
+        memset(r_xip_miss, 0, 9 * sizeof(unsigned));
+        memset(r_xip_acc, 0, 9 * sizeof(unsigned));
+    }
+    r_max_edges = r_max_surfs = 0;
+    r_surf_builds = r_surf_allocs = r_surf_texels = r_stat_frames = 0;
+}
+
 static void Sysmem_f(void) {
     q2_heap_report();
 }
@@ -25,5 +46,6 @@ static void Sysmem_f(void) {
 void q2_add_commands(void) {
     Cmd_AddCommand("prof", Prof_f);
     Cmd_AddCommand("sysmem", Sysmem_f);
+    Cmd_AddCommand("rstats", Rstats_f);
     Cmd_AddCommand("sdtest", q2_sd_bench);
 }

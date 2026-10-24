@@ -18,6 +18,13 @@ const void *QG_FindAsset(const char *name, int *size);
 // core)
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg);
 
+// RP2350: which items (rows, triangles, columns) of QG_Parallel2 work go to
+// the second core: item i is part QG_PART_OF(i); qg_split_mask has one bit
+// per i % 16, re-balanced by the platform so that both cores finish together
+extern volatile unsigned qg_split_mask;
+extern volatile int qg_split_k;			// bits set in qg_split_mask (of 16)
+#define QG_PART_OF(i)	((qg_split_mask >> ((i) & 15)) & 1)
+
 // RP2350: after a page flip the buffer to draw into is still on screen until
 // the next vsync; the renderer calls this before its first pixel write, so
 // that the frame's other work (game, BSP, edges) overlaps the wait

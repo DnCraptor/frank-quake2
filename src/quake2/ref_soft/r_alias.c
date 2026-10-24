@@ -42,7 +42,6 @@ int				r_amodels_drawn;
 affinetridesc_t	r_affinetridesc;
 
 vec3_t			r_plightvec;
-vec3_t          r_lerped[1024];
 vec3_t          r_lerp_frontv, r_lerp_backv, r_lerp_move;
 
 int				r_ambientlight;
@@ -256,8 +255,8 @@ aliasbatchedtransformdata_t aliasbatchedtransformdata;
 ================
 R_AliasDrawTriangles
 
-ESP32: the triangles of the model with index % 2 == part, on the core of
-that part (QG_Parallel2). The rasterizer state is per core (R_TLS, r_part);
+ESP32: the triangles of the model of one part (RP2350: QG_PART_OF), on the
+core of that part (QG_Parallel2). The rasterizer state is per core (R_TLS, r_part);
 the vertices of a triangle are copied, with their texture coordinates
 (a vertex can have different ones in different triangles).
 ================
@@ -276,10 +275,13 @@ static void R_AliasDrawTriangles (void *arg, int part)
 	(void)arg;
 	r_part = part;
 	pstverts = (dstvert_t *)((byte *)s_pmdl + s_pmdl->ofs_st);
-	ptri = (dtriangle_t *)((byte *)s_pmdl + s_pmdl->ofs_tris) + part;
+	ptri = (dtriangle_t *)((byte *)s_pmdl + s_pmdl->ofs_tris);
 
-	for (i=part ; i<s_pmdl->num_tris ; i+=2, ptri+=2)
+	for (i=0 ; i<s_pmdl->num_tris ; i++, ptri++)
 	{
+		if ((int)QG_PART_OF (i) != part)
+			continue;		// the other core's triangle
+
 		finalvert_t	*p0 = &pfinalverts[ptri->index_xyz[0]];
 		finalvert_t	*p1 = &pfinalverts[ptri->index_xyz[1]];
 		finalvert_t	*p2 = &pfinalverts[ptri->index_xyz[2]];
@@ -332,7 +334,7 @@ static void R_AliasDrawTriangles (void *arg, int part)
 static void R_AliasTransformPart (void *arg, int part)
 {
 	aliasbatchedtransformdata_t *d = arg;
-	int		half = d->num_points / 2;
+	int		half = d->num_points * (16 - qg_split_k) / 16;	// core 0's share
 	int		first = part ? half : 0;
 	int		n = part ? d->num_points - half : half;
 

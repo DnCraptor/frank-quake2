@@ -2179,6 +2179,9 @@ void CL_TeleportParticles (vec3_t org)
 CL_AddParticles
 ===============
 */
+#ifdef PLATFORM_RP2350
+__attribute__((section(".time_critical.q2")))	// SRAM: every particle, every frame
+#endif
 void CL_AddParticles (void)
 {
 	cparticle_t		*p, *next;

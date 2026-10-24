@@ -1048,6 +1048,7 @@ int r_us_spans, r_us_cache, r_us_draw;   // ESP32: profiling (r_dspeeds): time i
 void D_DrawSurfaces(void) {
   surf_t *s;
   int t0 = QG_Microseconds();
+  R_XipPhase(XS_SURF);
 
   //	currententity = NULL;	//&r_worldentity;
   VectorSubtract(r_origin, vec3_origin, modelorg);
@@ -1074,6 +1075,7 @@ void D_DrawSurfaces(void) {
     D_DrawflatSurfaces();
   D_FlushRecords();
   r_us_spans += QG_Microseconds() - t0;
+  R_XipPhase(XS_SCAN);
 
   currententity = NULL; //&r_worldentity;
   VectorSubtract(r_origin, vec3_origin, modelorg);

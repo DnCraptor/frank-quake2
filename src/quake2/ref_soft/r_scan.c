@@ -110,8 +110,9 @@ void D_GetSpanState(spanstate_t *st) {
   st->cachewidth = cachewidth;
 }
 
-// rows: 0 = all the spans, 1 = the even rows, 2 = the odd ones
-#define SKIPSPAN(pspan, rows) ((rows) && (((pspan)->v & 1) != (rows) - 1))
+// rows: 0 = all the spans, 1 = the rows of the first core, 2 = the other's
+// (RP2350: QG_PART_OF, a balanced share instead of even/odd)
+#define SKIPSPAN(pspan, rows) ((rows) && (int)QG_PART_OF((pspan)->v) != (rows) - 1)
 
 /*
 =============

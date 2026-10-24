@@ -45,7 +45,7 @@
 /* Maximum DMA transfer size in 32-bit words (stereo frames). frank-castle
  * transfers 441 (10 ms at 44.1 kHz, src/psyz_rp2350/audio.c); was 1536 for
  * Heretic's OPL rate, 8 KB of SRAM this port needs elsewhere. */
-#define DMA_BUFFER_MAX_SAMPLES 512
+#define DMA_BUFFER_MAX_SAMPLES 256 /* frank-quake2: 256-frame transfers */
 
 static uint32_t __attribute__((aligned(4)))
     dma_buffers[DMA_BUFFER_COUNT][DMA_BUFFER_MAX_SAMPLES];

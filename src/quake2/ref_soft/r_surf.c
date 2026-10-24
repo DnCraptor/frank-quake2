@@ -481,7 +481,7 @@ static void IRAM_ATTR R_DrawSurfaceColumns (void *arg, int part)
 
 	for (u = 0; u < r_numhblocks; u++)
 	{
-		if (part < 0 || (u & 1) == part)
+		if (part < 0 || (int)QG_PART_OF (u) == part)
 			DrawSurfaceBlock8_mip (c->mip, (const int *)blocklights + u, c->basetptr + soffset,
 				c->dest + u * blocksize);
 		soffset += blocksize;
@@ -768,6 +768,12 @@ surfcache_t *D_CacheSurface (msurface_t *surface, int miplevel)
 //
 // allocate memory if needed
 //
+	{	// "rstats"
+		extern int r_surf_builds, r_surf_allocs, r_surf_texels;
+		r_surf_builds++;
+		r_surf_allocs += !cache;
+		r_surf_texels += r_drawsurf.surfwidth * r_drawsurf.surfheight;
+	}
 	if (!cache)     // if a texture just animated, don't reallocate it
 	{
 		cache = D_SCAlloc (r_drawsurf.surfwidth,

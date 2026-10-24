@@ -20,6 +20,7 @@
 
 #include "ff.h"
 #include "hardware/clocks.h"
+#include "hardware/structs/xip_ctrl.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "psx_video.h"
@@ -41,7 +42,7 @@ extern void q2_add_commands(void);
 extern void q2_prof_poll(void);
 extern int64_t parallelWaitUs;
 
-static uint32_t core1_stack[8 * 1024 / 4];
+static uint32_t core1_stack[6 * 1024 / 4];
 
 static void wait_for_sd(void) {
     if (platform_mount_sd() == FR_OK) return;
@@ -134,11 +135,19 @@ int main(void) {
         if (time_us_32() - stats >= 5000000) {
             stats = time_us_32();
             extern volatile uint32_t core1_busy_us;
-            printf("fps: %.1f (core 0 waited %lu ms for core 1, core 1 busy %lu ms of 5000)\n",
+            extern int q2_split_share(void);
+            printf("fps: %.1f (core 0 waited %lu ms for core 1, core 1 busy %lu ms of 5000, share %d/16)\n",
                    (double)q2_take_fps(), (unsigned long)(parallelWaitUs / 1000),
-                   (unsigned long)(core1_busy_us / 1000));
+                   (unsigned long)(core1_busy_us / 1000), q2_split_share());
             parallelWaitUs = 0;
             core1_busy_us = 0;
+            /* XIP cache (flash code and data, PSRAM): hit rate */
+            static uint32_t last_acc, last_hit;
+            uint32_t acc = xip_ctrl_hw->ctr_acc - last_acc, hit = xip_ctrl_hw->ctr_hit - last_hit;
+            last_acc += acc;
+            last_hit += hit;
+            printf("xip: %lu k accesses, %lu k misses\n", (unsigned long)(acc / 1000),
+                   (unsigned long)((acc - hit) / 1000));
         }
     }
 }

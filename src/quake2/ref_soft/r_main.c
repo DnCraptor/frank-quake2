@@ -805,6 +805,26 @@ void R_DrawBEntitiesOnList(void) {
 R_EdgeDrawing
 ================
 */
+int r_max_edges, r_max_surfs;
+
+#ifdef PLATFORM_RP2350
+unsigned r_xip_miss[XS_N], r_xip_acc[XS_N];
+static int r_xip_phase;
+static unsigned r_xip_last_acc, r_xip_last_hit;
+
+void R_XipPhase (int next)
+{
+	unsigned acc = *(volatile unsigned *)(0x400c8000 + 0x10);
+	unsigned hit = *(volatile unsigned *)(0x400c8000 + 0x0c);
+	r_xip_acc[r_xip_phase] += acc - r_xip_last_acc;
+	r_xip_miss[r_xip_phase] += (acc - r_xip_last_acc) - (hit - r_xip_last_hit);
+	r_xip_last_acc = acc;
+	r_xip_last_hit = hit;
+	r_xip_phase = next;
+}
+#endif
+int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
+
 void R_EdgeDrawing(void) {
   static edge_t ledges[NUMSTACKEDGES + ((CACHE_SIZE - 1) / sizeof(edge_t)) + 1] EXT_RAM_BSS;
   static surf_t lsurfs[NUMSTACKSURFACES + ((CACHE_SIZE - 1) / sizeof(surf_t)) + 1] EXT_RAM_BSS;
@@ -835,7 +855,9 @@ void R_EdgeDrawing(void) {
     rw_time1 = Sys_Milliseconds();
   }
 
+  R_XipPhase(XS_WORLD);
   R_RenderWorld();
+  R_XipPhase(XS_BMODELS);
 
   if (r_dspeeds->value) {
     rw_time2 = Sys_Milliseconds();
@@ -844,11 +866,21 @@ void R_EdgeDrawing(void) {
 
   R_DrawBEntitiesOnList();
 
+  {	// high-water marks of the edge and surface arrays ("rstats")
+    extern int r_max_edges, r_max_surfs;
+int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
+    if (edge_p - r_edges > r_max_edges)
+      r_max_edges = edge_p - r_edges;
+    if (surface_p - surfaces > r_max_surfs)
+      r_max_surfs = surface_p - surfaces;
+  }
+
   if (r_dspeeds->value) {
     db_time2 = Sys_Milliseconds();
     se_time1 = db_time2;
   }
 
+  R_XipPhase(XS_SCAN);
   R_ScanEdges();
 }
 
@@ -938,6 +970,7 @@ void R_RenderFrame(refdef_t *fd) {
   if (r_speeds->value || r_dspeeds->value)
     r_time1 = Sys_Milliseconds();
 
+  R_XipPhase(XS_SETUP);
   R_SetupFrame();
 
   R_MarkLeaves(); // done here so we know if we're in water
@@ -945,6 +978,7 @@ void R_RenderFrame(refdef_t *fd) {
   R_PushDlights(r_worldmodel);
 
   R_EdgeDrawing();
+  R_XipPhase(XS_ENTITIES);
 
   if (r_dspeeds->value) {
     se_time2 = Sys_Milliseconds();
@@ -958,7 +992,9 @@ void R_RenderFrame(refdef_t *fd) {
     dp_time1 = Sys_Milliseconds();
   }
 
+  R_XipPhase(XS_PARTICLES);
   R_DrawParticles();
+  R_XipPhase(XS_REST);
 
   if (r_dspeeds->value)
     dp_time2 = Sys_Milliseconds();
@@ -986,6 +1022,7 @@ void R_RenderFrame(refdef_t *fd) {
 
   if (r_dspeeds->value)
     R_PrintDSpeeds();
+  R_XipPhase(XS_OUTSIDE);
 
   if (sw_reportsurfout->value && r_outofsurfaces)
     ri.Con_Printf(PRINT_ALL, "Short %d surfaces\n", r_outofsurfaces);
