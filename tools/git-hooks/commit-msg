@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# frank-quake2 — commit-msg hook: removes AI-tool trailers and footers from
+# the commit message (Co-Authored-By lines naming an AI assistant,
+# "Generated with ..." footers, session links), then trims trailing blank lines.
+# Installed by tools/install-hooks.sh.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+msg="$1"
+tmp="$msg.clean"
+
+grep -viE \
+    -e '^[[:space:]]*co-authored-by:.*(claude|anthropic|openai|chatgpt|copilot|gemini|cursor|codeium|noreply@anthropic\.com)' \
+    -e '^[[:space:]]*(🤖[[:space:]]*)?generated (with|by) .*(claude|chatgpt|copilot|gemini|cursor|ai)' \
+    -e '^[[:space:]]*claude-session:' \
+    -e 'claude\.(ai|com)/(code|claude-code)' \
+    "$msg" > "$tmp" || true
+
+# drop trailing blank lines
+awk '{ lines[NR] = $0 } END { n = NR; while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }' \
+    "$tmp" > "$msg"
+rm -f "$tmp"
+
+if ! grep -qv '^[[:space:]]*\(#.*\)\{0,1\}$' "$msg"; then
+    echo "commit-msg: the message is empty after cleaning" >&2
+    exit 1
+fi
+exit 0

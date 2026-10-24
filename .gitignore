@@ -1,0 +1,14 @@
+build/
+release/
+.DS_Store
+# game data is never committed
+*.bin
+*.pak
+__pycache__/
+build-*/
+# AI-tool files stay local
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.cursor/

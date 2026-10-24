@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# frank-quake2 — pre-commit hook: refuses AI-tool files (.claude/, CLAUDE.md,
+# .cursor/, AGENTS.md...) and game data (*.pak, the asset image) in a commit.
+# Installed by tools/install-hooks.sh.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+bad=$(git diff --cached --name-only --diff-filter=ACMR | grep -iE \
+    -e '(^|/)\.claude(/|$)' -e '(^|/)CLAUDE(\.local)?\.md$' -e '(^|/)AGENTS\.md$' \
+    -e '(^|/)\.cursor(/|$)' -e '(^|/)\.cursorrules$' -e '(^|/)\.aider' -e '(^|/)\.github/copilot' \
+    -e '\.pak$' -e '(^|/)assets\.bin$')
+
+if [ -n "$bad" ]; then
+    echo "pre-commit: these files must not be committed:" >&2
+    echo "$bad" | sed 's/^/  /' >&2
+    echo "unstage them (git restore --staged FILE)" >&2
+    exit 1
+fi
+exit 0

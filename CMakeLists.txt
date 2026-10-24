@@ -1,0 +1,222 @@
+#
+# frank-quake2 — Quake II for RP2350 (FRANK / Murmulator M2 boards)
+#
+# Copyright (c) 2026 Mikhail Matveev <xtreme@rh1.tech>
+#
+# Licensed under the GNU General Public License v3.0 or later.
+# The engine (src/quake2) is id Software's Quake II, GPL-2.0-or-later.
+#
+
+cmake_minimum_required(VERSION 3.13)
+
+set(PICO_BOARD frank_m2_rp2350b CACHE STRING "Pico board type")
+set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
+set(BOARD_VARIANT "M2" CACHE STRING "Board variant (only M2 for now)")
+set(CPU_SPEED "504" CACHE STRING "CPU clock in MHz: 252, 378, 504")
+# Tuned on the frank-castle dev board with the diag firmware ('r' sweeps the
+# PSRAM read delay, 'f' the flash one); use 133 MHz PSRAM if a board misbehaves.
+set(PSRAM_SPEED "168" CACHE STRING "PSRAM max frequency in MHz: 84, 100, 133, 168")
+set(PSRAM_RXDELAY "6" CACHE STRING "PSRAM read sampling delay override (empty: derived from the clock)")
+set(FLASH_SPEED "126" CACHE STRING "Flash chip max frequency in MHz")
+set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: derived from the clock)")
+# The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
+set(Q2_ASSETS_OFFSET "0x1C0000" CACHE STRING "Flash offset of the asset image")
+set(Q2_SAMPLE_RATE "11025" CACHE STRING "Sound output rate: 11025 or 22050")
+# Native USB is always the keyboard/mouse host; debug console is UART0 (GPIO0/1).
+set(USB_HID_ENABLED ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if(CPU_SPEED GREATER_EQUAL 504)
+    set(CPU_VOLTAGE "VREG_VOLTAGE_1_65")
+elseif(CPU_SPEED GREATER_EQUAL 378)
+    set(CPU_VOLTAGE "VREG_VOLTAGE_1_60")
+else()
+    set(CPU_VOLTAGE "VREG_VOLTAGE_1_50")
+endif()
+
+set(SD_PIN_SCK 6)
+set(SD_PIN_MOSI 7)
+set(SD_PIN_MISO 4)
+set(SD_PIN_CS 5)
+set(I2S_DATA_PIN 9)
+set(I2S_CLK_PIN 10)
+
+include(pico_sdk_import.cmake)
+
+project(frank-quake2 C CXX ASM)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
+file(READ "${CMAKE_CURRENT_LIST_DIR}/version.txt" Q2_VERSION_RAW)
+string(STRIP "${Q2_VERSION_RAW}" Q2_VERSION_RAW)
+string(REGEX REPLACE "[ \t]+" ";" Q2_VERSION_PARTS "${Q2_VERSION_RAW}")
+list(GET Q2_VERSION_PARTS 0 Q2_VERSION_MAJOR)
+list(GET Q2_VERSION_PARTS 1 Q2_VERSION_MINOR)
+if(Q2_VERSION_MINOR LESS 10)
+    set(Q2_VERSION "${Q2_VERSION_MAJOR}.0${Q2_VERSION_MINOR}")
+else()
+    set(Q2_VERSION "${Q2_VERSION_MAJOR}.${Q2_VERSION_MINOR}")
+endif()
+
+pico_sdk_init()
+
+# ---------------------------------------------------------------------
+# Drivers (shared with the other FRANK ports)
+# ---------------------------------------------------------------------
+add_subdirectory(drivers/fatfs)
+add_subdirectory(drivers/sdcard)
+add_subdirectory(drivers/usbhid)
+add_subdirectory(drivers/audio)
+
+add_library(drivers STATIC
+    drivers/psram_init.c
+    drivers/psram_allocator.c
+    drivers/psram_heap.c
+    drivers/dlmalloc.c
+    drivers/hdmi/psx_video.c
+    drivers/hdmi/hstx_packet.c
+    drivers/hdmi/hstx_data_island_queue.c
+)
+target_include_directories(drivers PUBLIC drivers drivers/hdmi)
+target_link_libraries(drivers PUBLIC pico_stdlib hardware_dma hardware_irq hardware_clocks hardware_gpio)
+set_source_files_properties(drivers/dlmalloc.c PROPERTIES COMPILE_DEFINITIONS
+    "ONLY_MSPACES=1;HAVE_MMAP=0;HAVE_MORECORE=0;NO_MALLOC_STATS=1;USE_LOCKS=0;ABORT_ON_ASSERT_FAILURE=0;MALLOC_FAILURE_ACTION=;LACKS_SYS_MMAN_H=1;LACKS_UNISTD_H=1;LACKS_SYS_PARAM_H=1"
+)
+target_compile_definitions(drivers PUBLIC
+    PSRAM_MAX_FREQ_MHZ=${PSRAM_SPEED}
+    $<$<BOOL:${PSRAM_RXDELAY}>:PSRAM_RXDELAY=${PSRAM_RXDELAY}>
+    PSXV_PIN_BASE=12
+)
+
+set(Q2_DEFINES
+    BOARD_${BOARD_VARIANT}
+    CPU_CLOCK_MHZ=${CPU_SPEED}
+    CPU_VOLTAGE=${CPU_VOLTAGE}
+    PSRAM_MAX_FREQ_MHZ=${PSRAM_SPEED}
+    $<$<BOOL:${PSRAM_RXDELAY}>:PSRAM_RXDELAY=${PSRAM_RXDELAY}>
+    FLASH_MAX_FREQ_MHZ=${FLASH_SPEED}
+    $<$<BOOL:${FLASH_RXDELAY}>:FLASH_RXDELAY=${FLASH_RXDELAY}>
+    PICO_AUDIO_I2S_DATA_PIN=${I2S_DATA_PIN}
+    PICO_AUDIO_I2S_CLOCK_PIN_BASE=${I2S_CLK_PIN}
+    Q2_VERSION="${Q2_VERSION}"
+    Q2_ASSETS_OFFSET=${Q2_ASSETS_OFFSET}
+    Q2_SAMPLE_RATE=${Q2_SAMPLE_RATE}
+)
+
+# Board bring-up and the C heap, shared by the diag and game firmware
+add_library(q2_platform STATIC
+    src/common/font6x8.c
+    src/common/fbcon.c
+    src/rp2350/platform.c
+    src/rp2350/uart_buffered.c
+    src/rp2350/q2_malloc.c
+)
+target_include_directories(q2_platform PUBLIC src/common src/rp2350 src/rp2350/compat)
+target_compile_definitions(q2_platform PUBLIC ${Q2_DEFINES})
+target_link_libraries(q2_platform PUBLIC
+    pico_stdlib pico_multicore hardware_clocks hardware_vreg hardware_watchdog
+    drivers fatfs sdcard usbhid audio_driver)
+
+# ---------------------------------------------------------------------
+# Phase 0: hardware bring-up firmware
+# ---------------------------------------------------------------------
+add_executable(frank-quake2-diag src/diag/diag_main.c)
+target_link_libraries(frank-quake2-diag q2_platform)
+target_link_options(frank-quake2-diag PRIVATE -Wl,--wrap=panic
+    -Wl,--defsym=__q2_assets_offset=${Q2_ASSETS_OFFSET})
+pico_set_linker_script(frank-quake2-diag ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
+pico_enable_stdio_usb(frank-quake2-diag 0)
+pico_enable_stdio_uart(frank-quake2-diag 1)
+pico_add_extra_outputs(frank-quake2-diag)
+
+# ---------------------------------------------------------------------
+# The engine: Quake II from the ESP32-S3 port (quake2generic lineage),
+# with the game (baseq2) and the software renderer linked in.
+# ---------------------------------------------------------------------
+set(Q2_DIR ${CMAKE_CURRENT_LIST_DIR}/src/quake2)
+
+set(Q2_REF_SOFT_SOURCES
+    r_aclip.c r_alias.c r_bsp.c r_draw.c r_edge.c r_image.c r_light.c r_main.c
+    r_misc.c r_model.c r_part.c r_poly.c r_polyse.c r_rast.c r_scan.c r_sprite.c r_surf.c
+)
+list(TRANSFORM Q2_REF_SOFT_SOURCES PREPEND ${Q2_DIR}/ref_soft/)
+
+set(Q2_GAME_SOURCES
+    g_ai.c g_chase.c g_cmds.c g_combat.c g_func.c g_items.c g_main.c g_misc.c
+    g_monster.c g_phys.c g_save.c g_spawn.c g_svcmds.c g_target.c g_trigger.c
+    g_turret.c g_utils.c g_weapon.c m_actor.c m_berserk.c m_boss2.c m_boss3.c
+    m_boss31.c m_boss32.c m_brain.c m_chick.c m_flash.c m_flipper.c m_float.c
+    m_flyer.c m_gladiator.c m_gunner.c m_hover.c m_infantry.c m_insane.c
+    m_medic.c m_move.c m_mutant.c m_parasite.c m_soldier.c m_supertank.c
+    m_tank.c p_client.c p_hud.c p_trail.c p_view.c p_weapon.c q_shared.c
+)
+list(TRANSFORM Q2_GAME_SOURCES PREPEND ${Q2_DIR}/game/)
+
+set(Q2_CORE_SOURCES
+    client/cl_cin.c client/cl_ents.c client/cl_fx.c client/cl_input.c
+    client/cl_inv.c client/cl_main.c client/cl_newfx.c client/cl_parse.c
+    client/cl_pred.c client/cl_scrn.c client/cl_tent.c client/cl_view.c
+    client/console.c client/keys.c client/menu.c client/qmenu.c
+    client/snd_dma.c client/snd_mem.c client/snd_mix.c
+    server/sv_ccmds.c server/sv_ents.c server/sv_game.c server/sv_init.c
+    server/sv_main.c server/sv_send.c server/sv_user.c server/sv_world.c
+    qcommon/cmd.c qcommon/cmodel.c qcommon/common.c qcommon/crc.c
+    qcommon/cvar.c qcommon/files.c qcommon/md4.c qcommon/net_chan.c
+    qcommon/pmove.c qcommon/q_perf.c
+    other/glob.c other/q_arena.c other/q_assets.c other/q_hunk.c
+    other/q_system.c other/vid_lib.c other/vid_menu.c
+    net/net_loop.c
+    null/cd_null.c
+    port_esp32.c
+)
+list(TRANSFORM Q2_CORE_SOURCES PREPEND ${Q2_DIR}/)
+
+add_library(quake2_core OBJECT ${Q2_CORE_SOURCES} ${Q2_REF_SOFT_SOURCES} ${Q2_GAME_SOURCES})
+target_include_directories(quake2_core PRIVATE ${Q2_DIR} src/rp2350/compat src/rp2350 src/common)
+# ESP_PLATFORM: the ESP32 code paths of the engine (pak handle pool, big
+# stdio buffers, EXT_RAM_BSS tables in PSRAM) apply here as they are.
+target_compile_definitions(quake2_core PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1 ${Q2_DEFINES})
+# 1997 C: no warnings. The engine expects signed chars (ARM's are unsigned).
+# -fsingle-precision-constant: the FPU is single precision only.
+target_compile_options(quake2_core PRIVATE -w -fsigned-char -fno-strict-aliasing
+    -fsingle-precision-constant -O2)
+set_source_files_properties(${Q2_REF_SOFT_SOURCES} TARGET_DIRECTORY quake2_core PROPERTIES
+    COMPILE_OPTIONS "-O3;-funroll-loops;-fno-math-errno")
+# (no libraries: INTERFACE libraries would compile their sources into it again)
+
+add_executable(frank-quake2
+    src/rp2350/main.c
+    src/rp2350/q2_port.c
+    src/rp2350/q2_video.c
+    src/rp2350/q2_sound.c
+    src/rp2350/q2_input.c
+    src/rp2350/q2_fs.c
+    src/rp2350/tls.c
+    src/rp2350/q2_prof.c
+    src/rp2350/q2_cmds.c
+    $<TARGET_OBJECTS:quake2_core>
+)
+# IRQ code must stay in SRAM: stop GCC from turning copy loops into calls
+# to newlib's memcpy/memset.
+set_source_files_properties(src/rp2350/q2_video.c src/rp2350/q2_sound.c
+    PROPERTIES COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns")
+target_include_directories(frank-quake2 PRIVATE ${Q2_DIR})
+target_compile_definitions(frank-quake2 PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1)
+target_compile_options(frank-quake2 PRIVATE -fsigned-char)
+target_compile_definitions(frank-quake2 PRIVATE PICO_MALLOC_PANIC=0)
+target_link_libraries(frank-quake2 q2_platform hardware_dma hardware_xip_cache pico_multicore pico_sync)
+pico_set_linker_script(frank-quake2 ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
+target_link_options(frank-quake2 PRIVATE
+    -Wl,--no-enum-size-warning
+    -Wl,--wrap=panic
+    -Wl,--wrap=fclose
+    -Wl,--defsym=__q2_assets_offset=${Q2_ASSETS_OFFSET}
+    -Wl,--print-memory-usage
+)
+set_property(TARGET frank-quake2 APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
+pico_enable_stdio_usb(frank-quake2 0)
+pico_enable_stdio_uart(frank-quake2 1)
+pico_add_extra_outputs(frank-quake2)
