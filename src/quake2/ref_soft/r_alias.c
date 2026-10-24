@@ -327,6 +327,19 @@ static void R_AliasDrawTriangles (void *arg, int part)
 	}
 }
 
+#ifdef PLATFORM_RP2350
+// one half of the vertices of aliasbatchedtransformdata (part 0: the first)
+static void R_AliasTransformPart (void *arg, int part)
+{
+	aliasbatchedtransformdata_t *d = arg;
+	int		half = d->num_points / 2;
+	int		first = part ? half : 0;
+	int		n = part ? d->num_points - half : half;
+
+	R_AliasTransformFinalVerts (n, d->dest_verts + first, d->last_verts + first, d->this_verts + first);
+}
+#endif
+
 void R_AliasPreparePoints (void)
 {
 	static finalvert_t	finalverts[MAXALIASVERTS +
@@ -352,6 +365,12 @@ void R_AliasPreparePoints (void)
 	{
 		extern int r_us_atrans;
 		int t0 = QG_Microseconds ();
+#ifdef PLATFORM_RP2350
+		// RP2350: the vertices are independent, each core does half of them
+		if (aliasbatchedtransformdata.num_points >= 64)
+			QG_Parallel2 (R_AliasTransformPart, &aliasbatchedtransformdata);
+		else
+#endif
 		R_AliasTransformFinalVerts( aliasbatchedtransformdata.num_points,
 			                        aliasbatchedtransformdata.dest_verts,
 									aliasbatchedtransformdata.last_verts,
