@@ -596,6 +596,13 @@ void R_DrawParticle( void )
 void R_DrawParticles (void)
 {
 	QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
+#ifdef PLATFORM_RP2350
+	{	// the client moves the particles on the other core (CL_AddEntities)
+		extern int r_numparticles;
+		QG_WaitAsync ();
+		r_newrefdef.num_particles = r_numparticles;
+	}
+#endif
 	particle_t *p;
 	int         i;
 	extern unsigned long fpu_sp24_cw, fpu_chop_cw;

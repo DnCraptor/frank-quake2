@@ -51,6 +51,9 @@ edge_t *newedges[MAXHEIGHT];
 edge_t *removeedges[MAXHEIGHT];
 
 espan_t *span_p, *max_span_p;
+#ifdef PLATFORM_RP2350
+static espan_t *r_scan_basespan;	// R_ScanEdges
+#endif
 
 int r_currentkey;
 
@@ -559,6 +562,171 @@ void R_GenerateSpansBackward(void) {
   R_CleanupSpan();
 }
 
+#ifdef PLATFORM_RP2350
+/*
+==============
+Parallel scan (RP2350)
+
+The scan of R_ScanEdges is split in two: this core inserts, removes, steps
+and sorts the edges line after line, and writes each line's sorted active
+edges (u, the two surfaces) into a ring; the other core generates the spans
+from the ring (R_GenerateSpans on the copies), one or more lines behind.
+Only the generation touches the surfaces and the span buffer, only the
+scan touches the edges. When the span buffer fills, the generation stops
+and this core draws the surfaces (D_DrawSurfaces) and starts it again.
+==============
+*/
+#define SCAN_RING	1024		// words (4 KB); a line: 1 + 2 per edge
+
+extern unsigned char q2_scratch4k[];	// the SD staging buffer: no file is read during the scan
+#define scan_ring ((unsigned *)q2_scratch4k)
+static volatile unsigned scan_wr, scan_rd;	// in words, never wrapped
+static volatile int	scan_last;		// the scan wrote its last line
+static volatile int	scan_full;		// the generation stopped on a full span buffer
+static int			scan_backward;
+
+static void IRAM_ATTR R_LeadingEdgeU (int u, int s1)
+{
+	edge_t	e;		// R_LeadingEdge only reads u and surfs[1]
+
+	e.u = u;
+	e.surfs[1] = s1;
+	if (scan_backward)
+		R_LeadingEdgeBackwards (&e);
+	else
+		R_LeadingEdge (&e);
+}
+
+static void IRAM_ATTR R_TrailingEdgeU (surf_t *surf, int u)
+{
+	edge_t	e;
+
+	e.u = u;
+	R_TrailingEdge (surf, &e);
+}
+
+// the other core: spans from the ring, until the scan is done or the span
+// buffer is full
+static void IRAM_ATTR R_ScanGenerate (void *arg, int part)
+{
+	unsigned	rd = scan_rd;
+
+	(void)arg;
+	(void)part;
+	for (;;)
+	{
+		unsigned	head, n, i;
+
+		while (rd == scan_wr)
+		{
+			if (scan_last && rd == scan_wr)
+			{
+				scan_rd = rd;
+				return;
+			}
+			__asm__ volatile ("wfe");
+		}
+		__asm__ volatile ("dmb" ::: "memory");
+		head = scan_ring[rd % SCAN_RING];
+		current_iv = head & 0xffff;
+		n = head >> 16;
+		fv = (float)current_iv;
+
+		surfaces[1].spanstate = 1;	// the head (background start) span is pre-included
+		surfaces[1].next = surfaces[1].prev = &surfaces[1];
+		surfaces[1].last_u = edge_head_u_shift20;
+
+		for (i = 0; i < n; i++)
+		{
+			int			u = (int)scan_ring[(rd + 1 + 2 * i) % SCAN_RING];
+			unsigned	ss = scan_ring[(rd + 2 + 2 * i) % SCAN_RING];
+			int			s0 = ss & 0xffff, s1 = ss >> 16;
+
+			if (scan_backward)
+			{
+				if (s0)
+					R_TrailingEdgeU (&surfaces[s0], u);
+				if (s1)
+					R_LeadingEdgeU (u, s1);
+				continue;
+			}
+			if (s0)
+			{
+				R_TrailingEdgeU (&surfaces[s0], u);
+				if (!s1)
+					continue;
+			}
+			R_LeadingEdgeU (u, s1);
+		}
+		R_CleanupSpan ();
+
+		rd += 1 + 2 * n;
+		__asm__ volatile ("dmb" ::: "memory");
+		scan_rd = rd;
+		__asm__ volatile ("sev");
+
+		if (span_p > max_span_p)
+		{
+			scan_full = 1;
+			return;
+		}
+	}
+}
+
+static void R_ScanFlush (void);
+
+static void IRAM_ATTR R_ScanWait (unsigned need)
+{
+	while (scan_wr + need - scan_rd > SCAN_RING)
+	{
+		if (scan_full)
+			R_ScanFlush ();
+		else
+			__asm__ volatile ("wfe");
+	}
+}
+
+// this core: the line's sorted active edges into the ring
+static void IRAM_ATTR R_ScanPutLine (int iv)
+{
+	edge_t		*edge;
+	unsigned	wr = scan_wr, n = 0;
+
+	R_ScanWait (1);
+	for (edge = edge_head.next; edge != &edge_tail; edge = edge->next)
+	{
+		if (wr + 3 + 2 * n - scan_rd > SCAN_RING)
+			R_ScanWait (3 + 2 * n);
+		scan_ring[(wr + 1 + 2 * n) % SCAN_RING] = (unsigned)edge->u;
+		scan_ring[(wr + 2 + 2 * n) % SCAN_RING] = edge->surfs[0] | (unsigned)edge->surfs[1] << 16;
+		n++;
+	}
+	scan_ring[wr % SCAN_RING] = (unsigned)iv | n << 16;
+	__asm__ volatile ("dmb" ::: "memory");
+	scan_wr = wr + 1 + 2 * n;
+	__asm__ volatile ("sev");
+	if (scan_full)
+		R_ScanFlush ();
+}
+
+// the generation stopped on a full span buffer: draw what it has, go on
+int r_scan_flushes, r_ds_calls;	// "rstats"
+
+static void R_ScanFlush (void)
+{
+	surf_t	*s;
+
+	r_scan_flushes++;
+	QG_WaitAsync ();
+	scan_full = 0;
+	D_DrawSurfaces ();
+	for (s = &surfaces[1]; s < surface_p; s++)
+		s->spans = NULL;
+	span_p = r_scan_basespan;
+	QG_RunAsync (R_ScanGenerate, NULL);
+}
+#endif
+
 /*
 ==============
 R_ScanEdges
@@ -582,6 +750,9 @@ void IRAM_ATTR R_ScanEdges(void) {
   max_span_p = &basespan_p[MAXSPANS - r_refdef.vrect.width];
 
   span_p = basespan_p;
+#ifdef PLATFORM_RP2350
+  r_scan_basespan = basespan_p;
+#endif
 
   // clear active edges to just the background edges around the whole screen
   // FIXME: most of this only needs to be set up once
@@ -614,6 +785,45 @@ void IRAM_ATTR R_ScanEdges(void) {
   // process all scan lines
   //
   bottom = r_refdef.vrectbottom - 1;
+
+#ifdef PLATFORM_RP2350
+  static cvar_t *sw_pscan;
+  if (!sw_pscan)
+    sw_pscan = ri.Cvar_Get("sw_pscan", "1", 0);
+  if (QG_SecondCore () && sw_pscan->value) {
+    scan_backward = pdrawfunc == R_GenerateSpansBackward;
+    scan_wr = scan_rd = 0;
+    scan_last = scan_full = 0;
+    QG_RunAsync (R_ScanGenerate, NULL);
+    for (iv = r_refdef.vrect.y; iv < bottom; iv++) {
+      if (newedges[iv])
+        R_InsertNewEdges(newedges[iv], edge_head.next);
+      R_ScanPutLine(iv);
+      if (removeedges[iv])
+        R_RemoveEdges(removeedges[iv]);
+      if (edge_head.next != &edge_tail)
+        R_StepActiveU(edge_head.next);
+    }
+    // the last scan (no need to step or sort or remove)
+    if (newedges[iv])
+      R_InsertNewEdges(newedges[iv], edge_head.next);
+    R_ScanPutLine(iv);
+    scan_last = 1;
+    __asm__ volatile ("sev");
+    for (;;) {
+      QG_WaitAsync();
+      if (!scan_full)
+        break;
+      R_ScanFlush();	// starts the generation again
+      scan_last = 1;
+      __asm__ volatile ("sev");
+    }
+    current_iv = iv;
+    fv = (float)iv;
+    D_DrawSurfaces();
+    return;
+  }
+#endif
 
   for (iv = r_refdef.vrect.y; iv < bottom; iv++) {
     current_iv = iv;
@@ -1048,6 +1258,12 @@ int r_us_spans, r_us_cache, r_us_draw;   // ESP32: profiling (r_dspeeds): time i
 void D_DrawSurfaces(void) {
   surf_t *s;
   int t0 = QG_Microseconds();
+#ifdef PLATFORM_RP2350
+  {
+    extern int r_ds_calls;
+    r_ds_calls++;
+  }
+#endif
   R_XipPhase(XS_SURF);
 
   //	currententity = NULL;	//&r_worldentity;

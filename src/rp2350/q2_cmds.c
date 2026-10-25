@@ -37,7 +37,11 @@ static void Rstats_f(void) {
     }
     {
         extern unsigned scr_us[];
+        extern int r_scan_flushes, r_ds_calls;
         unsigned f = scr_us[5] ? scr_us[5] : 1;
+        Com_Printf("  per frame: %u.%02u D_DrawSurfaces, %u.%02u scan flushes\n", r_ds_calls / f,
+                   r_ds_calls * 100 / f % 100, r_scan_flushes / f, r_scan_flushes * 100 / f % 100);
+        r_ds_calls = r_scan_flushes = 0;
         Com_Printf("  screen per frame: begin %u, view %u (of which render %u), 2D %u, end %u us\n",
                    scr_us[0] / f, scr_us[1] / f, scr_us[2] / f, scr_us[3] / f, scr_us[4] / f);
         memset(scr_us, 0, 6 * sizeof(unsigned));

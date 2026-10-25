@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_ents.c -- entity parsing and management
 
 #include "client.h"
+#include "../quakegeneric.h"
 
 
 extern	struct model_s	*cl_mod_powerscreen;
@@ -1473,7 +1474,17 @@ void CL_AddEntities (void)
 	CL_AddProjectiles ();
 #endif
 	CL_AddTEnts ();
+#ifdef PLATFORM_RP2350
+	// RP2350: the particles move on the other core while this one draws
+	// the world; R_DrawParticles and V_RenderView wait for them
+	if (cl_add_particles->value)
+	{
+		extern void CL_AddParticlesJob (void *arg, int part);
+		QG_RunAsync (CL_AddParticlesJob, NULL);
+	}
+#else
 	CL_AddParticles ();
+#endif
 	CL_AddDLights ();
 	CL_AddLightStyles ();
 }

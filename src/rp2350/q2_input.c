@@ -47,10 +47,10 @@ static uint8_t mouse_buttons;
 
 /* ---- UART console: lines for the Quake console ---- */
 
-#define NLINES 8
-static char uart_line[256];
+#define NLINES 4
+static char uart_line[128];
 static int uart_len;
-static char lines[NLINES][256];
+static char lines[NLINES][128];
 static unsigned lines_wr, lines_rd;
 
 static void uart_poll(void) {
@@ -74,7 +74,7 @@ static void uart_poll(void) {
 
 /* Engine interface (Sys_ConsoleInput): the next console line, NULL if none */
 char *QG_ConsoleInput(void) {
-    static char line[256];
+    static char line[128];
     uart_poll();
     if (lines_rd == lines_wr) return NULL;
     strcpy(line, lines[lines_rd % NLINES]);

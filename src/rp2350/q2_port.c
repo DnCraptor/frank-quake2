@@ -41,6 +41,7 @@ static void (*volatile job_fn)(void *arg, int part);
 static void *volatile job_arg;
 static volatile uint32_t job_seq, job_done_seq;
 static volatile uint32_t core1_part_us; /* time of core 1's last part */
+static volatile bool job_async;          /* the job is not a QG_Parallel2 part */
 static volatile bool core1_ready;
 
 int64_t parallelWaitUs; /* time the game core waited for core 1 */
@@ -58,7 +59,7 @@ void __not_in_flash_func(q2_core1_main)(void) {
         uint32_t t0 = time_us_32();
         job_fn(job_arg, 1);
         uint32_t dt = time_us_32() - t0;
-        core1_part_us = dt;
+        if (!job_async) core1_part_us = dt; /* for the balance of QG_Parallel2 */
         core1_busy_us += dt;
         __dmb();
         job_done_seq = seen;
@@ -104,8 +105,40 @@ int q2_split_share(void) {
     return qg_split_k;
 }
 
+/* A job for core 1 alone, core 0 goes on (QG_WaitAsync) */
+void QG_RunAsync(void (*fn)(void *arg, int part), void *arg) {
+    if (!core1_ready) {
+        fn(arg, 1);
+        return;
+    }
+    QG_WaitAsync();
+    job_fn = fn;
+    job_arg = arg;
+    job_async = true;
+    __dmb();
+    job_seq = job_seq + 1;
+    __sev();
+}
+
+int QG_SecondCore(void) {
+#ifdef Q2_SINGLE_CORE
+    return 0;
+#else
+    return core1_ready;
+#endif
+}
+
+void QG_WaitAsync(void) {
+    if (job_done_seq == job_seq) return;
+    Perf_Push(PERF_PARALLEL);
+    while (job_done_seq != job_seq) __wfe();
+    __dmb();
+    Perf_Pop();
+}
+
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
     QG_NEED_BACK(); /* both users (spans, model triangles) draw */
+    QG_WaitAsync();
 #ifdef Q2_SINGLE_CORE
     const bool two = false;
 #else
@@ -118,6 +151,7 @@ void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
     }
     job_fn = fn;
     job_arg = arg;
+    job_async = false;
     __dmb();
     uint32_t seq = job_seq + 1;
     job_seq = seq;

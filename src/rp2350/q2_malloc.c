@@ -175,13 +175,39 @@ size_t _malloc_usable_size_r(struct _reent *r, void *p) {
 
 /* ---- ESP-IDF heap_caps, for the engine ---- */
 
+/* The renderer's z-buffer (320x240x2) and lighting colormap (64x256) asked
+ * for in internal RAM: static SRAM buffers, so that the linker guarantees
+ * them (from the heap, the order of the allocations decided whether the
+ * z-buffer fitted, and it silently went to PSRAM otherwise). */
+static uint16_t zbuffer[320 * 240] __attribute__((aligned(8)));
+static uint8_t colormap[64 * 256] __attribute__((aligned(8)));
+static bool zbuffer_used, colormap_used;
+
 void *heap_caps_malloc(size_t size, unsigned caps) {
+    if (caps & MALLOC_CAP_INTERNAL) {
+        if (size == sizeof(zbuffer) && !zbuffer_used) {
+            zbuffer_used = true;
+            return zbuffer;
+        }
+        if (size == sizeof(colormap) && !colormap_used) {
+            colormap_used = true;
+            return colormap;
+        }
+    }
     if (caps & MALLOC_CAP_SPIRAM) return psram_alloc(size);
     if (caps & MALLOC_CAP_INTERNAL) return sram_alloc(size);
     return q2_malloc(size);
 }
 
 void heap_caps_free(void *p) {
+    if (p == zbuffer) {
+        zbuffer_used = false;
+        return;
+    }
+    if (p == colormap) {
+        colormap_used = false;
+        return;
+    }
     q2_free(p);
 }
 

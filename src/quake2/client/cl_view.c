@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_view.c -- player rendering positioning
 
 #include "client.h"
+#include "../quakegeneric.h"
 
 //=============
 //
@@ -543,6 +544,9 @@ void V_RenderView( float stereo_separation )
 		re.RenderFrame (&cl.refdef);
 		scr_us[2] += QG_Microseconds () - t0;
 	}
+#ifdef PLATFORM_RP2350
+	QG_WaitAsync ();	// the particles (CL_AddEntities), before the next frame's parsing
+#endif
 	if (cl_stats->value)
 		Com_Printf ("ent:%i  lt:%i  part:%i\n", r_numentities, r_numdlights, r_numparticles);
 	if ( log_stats->value && ( log_stats_file != 0 ) )

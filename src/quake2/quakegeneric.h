@@ -18,6 +18,12 @@ const void *QG_FindAsset(const char *name, int *size);
 // core)
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg);
 
+// RP2350: runs fn(arg, 1) on the other core while this one goes on;
+// QG_WaitAsync returns once it is done (QG_Parallel2 waits for it first)
+void QG_RunAsync(void (*fn)(void *arg, int part), void *arg);
+void QG_WaitAsync(void);
+int QG_SecondCore(void);			// true when the other core takes jobs
+
 // RP2350: which items (rows, triangles, columns) of QG_Parallel2 work go to
 // the second core: item i is part QG_PART_OF(i); qg_split_mask has one bit
 // per i % 16, re-balanced by the platform so that both cores finish together

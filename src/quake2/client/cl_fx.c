@@ -2247,6 +2247,15 @@ void CL_AddParticles (void)
 }
 
 
+#ifdef PLATFORM_RP2350
+void CL_AddParticlesJob (void *arg, int part)
+{
+	(void)arg;
+	(void)part;
+	CL_AddParticles ();
+}
+#endif
+
 /*
 ==============
 CL_EntityEvent

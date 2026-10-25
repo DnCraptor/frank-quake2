@@ -45,8 +45,11 @@ typedef struct {
 } qfile_t;
 
 static qfile_t files[MAX_FILES];
-/* in SCRATCH_Y, the 4 KB SRAM bank nothing else uses */
-static uint8_t staging[STAGING] __attribute__((aligned(4), section(".scratch_y.staging")));
+/* in SCRATCH_Y, the 4 KB SRAM bank nothing else uses; shared with the
+ * renderer's scan ring (q2_scratch4k, r_edge.c): R_ScanEdges never reads
+ * a file */
+uint8_t q2_scratch4k[STAGING] __attribute__((aligned(4), section(".scratch_y.staging")));
+#define staging q2_scratch4k
 
 static inline bool in_sram(const void *p) {
     uintptr_t a = (uintptr_t)p;
