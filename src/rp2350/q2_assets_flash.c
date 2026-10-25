@@ -16,6 +16,11 @@
  * XIP cache flush that drops the lines (PSRAM ones included): the cache is
  * cleaned first so that no PSRAM write is lost. The data is assembled in
  * 4 KB sectors in SRAM (the renderer's ring buffer, unused at boot).
+ * The image takes the flash from Q2_ASSETS_OFFSET to its real end (8 MB
+ * boards exist: writing past the end wrapped around and erased the
+ * firmware, the build stopping at 37 %); Q_Assets_Build keeps the smaller
+ * files when they do not all fit.
+ *
  * The SDK's XIP restart sets the flash back to its boot timing: ours is put
  * back before any code runs from the flash again (flash_op). The board
  * restarts after a build anyway, the engine starting from a clean state.
@@ -35,7 +40,21 @@
 #ifndef Q2_ASSETS_OFFSET
 #define Q2_ASSETS_OFFSET 0x1C0000
 #endif
-#define ASSETS_SIZE (16 * 1024 * 1024 - Q2_ASSETS_OFFSET)
+/* The flash's real size: a smaller chip ignores the high address bits, so
+ * past its end the XIP window shows its start again (the firmware's vector
+ * table). Read only, no flash command. 16 MB when no mirror is found. */
+static uint32_t flash_size(void) {
+#ifdef Q2_FORCE_FLASH_MB	/* testing */
+    return Q2_FORCE_FLASH_MB << 20;
+#endif
+    const uint8_t *start = (const uint8_t *)XIP_NOCACHE_NOALLOC_BASE;
+    for (uint32_t size = 2u << 20; size < 16u << 20; size <<= 1)
+        if (!memcmp(start, start + size, 4096)) return size;
+    return 16u << 20;
+}
+
+static uint32_t assets_size; /* flash_size() - Q2_ASSETS_OFFSET */
+#define ASSETS_SIZE assets_size
 #define BLOCK 65536u
 #define SECTOR 4096u
 
@@ -160,6 +179,16 @@ static void progress_cb(void *ctx, int done, int total) {
  * assets (0: none). */
 int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     const void *base = (const void *)(XIP_BASE + Q2_ASSETS_OFFSET);
+    uint32_t flash = flash_size();
+    q2_con_printf("Flash: %lu MB\n", (unsigned long)(flash >> 20));
+    if (flash <= Q2_ASSETS_OFFSET + (1u << 20)) {
+        /* 2 MB: no room for the image next to the firmware */
+        q2_con_highlight("Flash too small for the models and skins image\n");
+        return 0;
+    }
+    assets_size = flash - Q2_ASSETS_OFFSET;
+    if (flash < (16u << 20))
+        q2_con_highlight("%lu MB flash: the biggest models will load to PSRAM\n", (unsigned long)(flash >> 20));
     FILE *flag = fopen(rebuild_flag, "rb");
     bool forced = flag != NULL;
     if (flag) fclose(flag);

@@ -46,12 +46,21 @@ at 0x101C0000) is built on the board from the paks, again when the paks
 change, or when `/quake2/assets.rebuild` exists on the card (deleted after
 the build). It stays across firmware updates.
 
+The board's flash size is detected. With 8 MB of flash the image holds about
+6 MB (the biggest models and skins are left out and load to PSRAM; big maps
+may then run out of memory); 2 MB is not enough for the image. Firmware 1.01
+and older assumed 16 MB: on an 8 MB board the build stopped at 37 % and
+erased the firmware. Flash the new UF2 again (the SD card is not touched).
+
 It can also be built on a PC and flashed (the board then keeps it as it is):
 
 ```
 tools/mkassets.py assets.bin pak2.pak pak1.pak pak0.pak
 ./flash.sh assets assets.bin       # picotool, at 0x101C0000
 ```
+
+The PC image is for 16 MB of flash; for a smaller chip pass
+`--size $(( (8 << 20) - 0x1C0000 ))` (8 MB) to mkassets.py.
 
 ## Building
 
