@@ -35,6 +35,13 @@ static void Rstats_f(void) {
         memset(r_xip_miss, 0, 9 * sizeof(unsigned));
         memset(r_xip_acc, 0, 9 * sizeof(unsigned));
     }
+    {
+        extern unsigned scr_us[];
+        unsigned f = scr_us[5] ? scr_us[5] : 1;
+        Com_Printf("  screen per frame: begin %u, view %u (of which render %u), 2D %u, end %u us\n",
+                   scr_us[0] / f, scr_us[1] / f, scr_us[2] / f, scr_us[3] / f, scr_us[4] / f);
+        memset(scr_us, 0, 6 * sizeof(unsigned));
+    }
     r_max_edges = r_max_surfs = 0;
     r_surf_builds = r_surf_allocs = r_surf_texels = r_stat_frames = 0;
 }

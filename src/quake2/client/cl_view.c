@@ -536,7 +536,13 @@ void V_RenderView( float stereo_separation )
         qsort( cl.refdef.entities, cl.refdef.num_entities, sizeof( cl.refdef.entities[0] ), (int (*)(const void *, const void *))entitycmpfnc );
 	}
 
-	re.RenderFrame (&cl.refdef);
+	{	// RP2350: "rstats" stages of SCR_UpdateScreen
+		extern unsigned scr_us[];
+		int QG_Microseconds (void);
+		int t0 = QG_Microseconds ();
+		re.RenderFrame (&cl.refdef);
+		scr_us[2] += QG_Microseconds () - t0;
+	}
 	if (cl_stats->value)
 		Com_Printf ("ent:%i  lt:%i  part:%i\n", r_numentities, r_numdlights, r_numparticles);
 	if ( log_stats->value && ( log_stats_file != 0 ) )

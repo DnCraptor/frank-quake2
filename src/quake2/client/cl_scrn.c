@@ -33,6 +33,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
   */
 
 #include "client.h"
+
+// RP2350: microseconds in BeginFrame, V_RenderView, R_RenderFrame (in it),
+// 2D, EndFrame, and the number of frames ("rstats")
+unsigned scr_us[6];
+static int scr_t2d;
+int QG_Microseconds (void);
 #include "../qcommon/q_perf.h"
 
 float		scr_con_current;	// aproaches scr_conlines at scr_conspeed
@@ -1331,7 +1337,11 @@ void SCR_UpdateScreen (void)
 
 	for ( i = 0; i < numframes; i++ )
 	{
-		re.BeginFrame( separation[i] );
+		{
+			int t0 = QG_Microseconds ();
+			re.BeginFrame( separation[i] );
+			scr_us[0] += QG_Microseconds () - t0;
+		}
 
 		if (scr_draw_loading == 2)
 		{	//  loading plaque over black screen
@@ -1393,7 +1403,12 @@ void SCR_UpdateScreen (void)
 			// clear any dirty part of the background
 			SCR_TileClear ();
 
-			V_RenderView ( separation[i] );
+			{
+				int t0 = QG_Microseconds ();
+				V_RenderView ( separation[i] );
+				scr_us[1] += QG_Microseconds () - t0;	// scene and R_RenderFrame
+				scr_t2d = QG_Microseconds ();
+			}
 
 			SCR_DrawStats ();
 			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & 1)
@@ -1421,6 +1436,14 @@ void SCR_UpdateScreen (void)
 			SCR_DrawFPS();
 		}
 	}
-	re.EndFrame();
+	if (scr_t2d)
+		scr_us[3] += QG_Microseconds () - scr_t2d;	// 2D
+	{
+		int t0 = QG_Microseconds ();
+		re.EndFrame();
+		scr_us[4] += QG_Microseconds () - t0;
+	}
+	scr_t2d = 0;
+	scr_us[5]++;
 	Perf_FrameDrawn ();
 }

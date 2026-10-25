@@ -59,7 +59,7 @@ SECTIONS
         *libgcc.a:cmse_nonsecure_call.o
         /* frank-quake2: the renderer's world (bsp, edges, spans) and model
          * (alias, polyse) code runs from SRAM, out of the XIP cache */
-        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libc.a:*libc_a-mem*.o *libg.a:*libc_a-mem*.o *libm.a: *r_polyse.c.o *r_alias.c.o *r_edge.c.o *r_rast.c.o *r_bsp.c.o) .text*)
+        *(EXCLUDE_FILE(*libgcc.a:_udivmoddi4.o *libgcc.a:_aeabi_ldivmod.o *libc.a:*lib_a-mem*.o *libc.a:*libc_a-mem*.o *libg.a:*libc_a-mem*.o *libm.a: *r_polyse.c.o *r_alias.c.o *r_edge.c.o *r_rast.c.o *r_bsp.c.o) .text*)
         *(.fini)
         /* Pull all c'tors into .text */
         *crtbegin.o(.ctors)
@@ -121,7 +121,7 @@ SECTIONS
         "ERROR: Pico second stage bootloader must be no more than 256 bytes in size")
 
     .rodata : {
-        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .rodata*)
+        *(EXCLUDE_FILE(*libgcc.a:_udivmoddi4.o *libgcc.a:_aeabi_ldivmod.o *libc.a:*lib_a-mem*.o *libm.a:) .rodata*)
         *(.srodata*)
         . = ALIGN(4);
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.flashdata*)))

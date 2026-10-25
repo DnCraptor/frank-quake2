@@ -6,8 +6,9 @@
  *
  * The C heap: newlib's allocator is replaced (its _malloc_r & co) by two
  * dlmalloc mspaces, one on the SRAM left after .bss, one on the PSRAM left
- * after .psram_bss. Small blocks go to SRAM while it has room, the rest to
- * PSRAM; free/realloc dispatch on the address. The engine's own memory is
+ * after .psram_bss. Allocations go to PSRAM once it is up (SRAM before);
+ * the SRAM heap is for explicit requests (heap_caps_malloc INTERNAL);
+ * free/realloc dispatch on the address. The engine's own memory is
  * one big block of the PSRAM heap (the arena, other/q_arena.c).
  *
  * dlmalloc is built without locks: only core 0 allocates (core 1 runs the
@@ -39,7 +40,6 @@ extern uint8_t __psram_heap_start__[];
 
 #define PSRAM_BASE 0x11000000u
 #define PSRAM_END  0x11800000u
-#define SRAM_SMALL 1024 /* larger blocks go to PSRAM unless asked for SRAM */
 
 static mspace sram_msp;
 static size_t sram_size, sram_used;
@@ -87,10 +87,13 @@ static void *psram_alloc(size_t n) {
     return p;
 }
 
+/* Once PSRAM is up, the SRAM heap is kept for what asks for it
+ * (heap_caps MALLOC_CAP_INTERNAL: the renderer's z-buffer and colormap). */
 void *q2_malloc(size_t n) {
     void *p = NULL;
-    if (n <= SRAM_SMALL || !psram_ready) p = sram_alloc(n);
+    if (!psram_ready) p = sram_alloc(n);
     if (!p) p = psram_alloc(n);
+    if (!p) p = sram_alloc(n);
     return p;
 }
 
@@ -153,7 +156,7 @@ void *_calloc_r(struct _reent *r, size_t a, size_t b) {
 void *_memalign_r(struct _reent *r, size_t align, size_t n) {
     if (!sram_msp) sram_init();
     void *p = NULL;
-    if (n <= SRAM_SMALL) {
+    {
         p = mspace_memalign(sram_msp, align, n);
         if (p) sram_used += mspace_usable_size(p);
     }

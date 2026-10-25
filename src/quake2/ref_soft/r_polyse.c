@@ -202,7 +202,7 @@ static adivtab_t	adivtab[32*32] = {
 #include "adivtab.h"
 };
 
-byte	*skintable[MAX_LBM_HEIGHT] EXT_RAM_BSS;
+byte	*skintable[MAX_LBM_HEIGHT];	// RP2350: in SRAM
 int		skinwidth;
 byte	*skinstart;
 
@@ -297,7 +297,7 @@ R_DrawTriangle
 */
 void R_DrawTriangle( void )
 {
-	static spanpackage_t spanbuf[2][DPS_MAXSPANS] EXT_RAM_BSS;	// ESP32: per core
+	static spanpackage_t spanbuf[2][DPS_MAXSPANS];	// ESP32: per core (RP2350: in SRAM)
 	spanpackage_t *spans = spanbuf[r_part];
 
 	int dv1_ab, dv0_ac;

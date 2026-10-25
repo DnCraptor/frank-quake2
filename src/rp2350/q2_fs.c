@@ -45,7 +45,8 @@ typedef struct {
 } qfile_t;
 
 static qfile_t files[MAX_FILES];
-static uint8_t staging[STAGING] __attribute__((aligned(4)));
+/* in SCRATCH_Y, the 4 KB SRAM bank nothing else uses */
+static uint8_t staging[STAGING] __attribute__((aligned(4), section(".scratch_y.staging")));
 
 static inline bool in_sram(const void *p) {
     uintptr_t a = (uintptr_t)p;
