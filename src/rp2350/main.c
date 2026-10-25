@@ -42,7 +42,7 @@ extern void q2_add_commands(void);
 extern void q2_prof_poll(void);
 extern int64_t parallelWaitUs;
 
-uint32_t core1_stack[2560 / 4]; /* 564 bytes used at most in demo1 (rstats) */
+uint32_t core1_stack[4096 / 4]; /* the BSP walk recurses on core 1; rstats shows the use */
 
 /* deepest use of core 1's stack so far ("rstats"; painted at boot) */
 unsigned q2_core1_stack_used(void) {

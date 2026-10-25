@@ -1475,12 +1475,13 @@ void CL_AddEntities (void)
 #endif
 	CL_AddTEnts ();
 #ifdef PLATFORM_RP2350
-	// RP2350: the particles move on the other core while this one draws
-	// the world; R_DrawParticles and V_RenderView wait for them
+	// RP2350: the particles move on the other core, after its BSP walk,
+	// while this one renders the world faces; R_DrawParticles and
+	// V_RenderView wait for them
 	if (cl_add_particles->value)
 	{
 		extern void CL_AddParticlesJob (void *arg, int part);
-		QG_RunAsync (CL_AddParticlesJob, NULL);
+		QG_DeferAsync (CL_AddParticlesJob, NULL);	// after the BSP walk (R_RenderWorld)
 	}
 #else
 	CL_AddParticles ();

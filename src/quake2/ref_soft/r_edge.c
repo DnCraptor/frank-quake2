@@ -605,14 +605,14 @@ static void IRAM_ATTR R_TrailingEdgeU (surf_t *surf, int u)
 	R_TrailingEdge (surf, &e);
 }
 
-// the other core: spans from the ring, until the scan is done or the span
-// buffer is full
-static void IRAM_ATTR R_ScanGenerate (void *arg, int part)
+static void R_ScanFlushHere (void);
+
+// spans from the ring, until the scan is done; a full span buffer either
+// stops it (scan_full: the scanning core draws) or is drawn here
+static void IRAM_ATTR R_ScanGenerateLines (int flush_here)
 {
 	unsigned	rd = scan_rd;
 
-	(void)arg;
-	(void)part;
 	for (;;)
 	{
 		unsigned	head, n, i;
@@ -667,10 +667,23 @@ static void IRAM_ATTR R_ScanGenerate (void *arg, int part)
 
 		if (span_p > max_span_p)
 		{
-			scan_full = 1;
-			return;
+			if (flush_here)
+				R_ScanFlushHere ();
+			else
+			{
+				scan_full = 1;
+				return;
+			}
 		}
 	}
+}
+
+// sw_pscan 1: the generation on the other core
+static void IRAM_ATTR R_ScanGenerate (void *arg, int part)
+{
+	(void)arg;
+	(void)part;
+	R_ScanGenerateLines (0);
 }
 
 static void R_ScanFlush (void);
@@ -724,6 +737,46 @@ static void R_ScanFlush (void)
 		s->spans = NULL;
 	span_p = r_scan_basespan;
 	QG_RunAsync (R_ScanGenerate, NULL);
+}
+
+// sw_pscan 2: the generation is on this core, the scan on the other one;
+// a full span buffer is drawn right away (on this core alone: the other one
+// is scanning)
+static void R_ScanFlushHere (void)
+{
+	surf_t	*s;
+
+	r_scan_flushes++;
+	D_DrawSurfaces ();
+	for (s = &surfaces[1]; s < surface_p; s++)
+		s->spans = NULL;
+	span_p = r_scan_basespan;
+}
+
+static int	scan_top, scan_bottom;
+
+static void IRAM_ATTR R_ScanProduce (void *arg, int part)
+{
+	int		iv;
+
+	(void)arg;
+	(void)part;
+	for (iv = scan_top; iv < scan_bottom; iv++)
+	{
+		if (newedges[iv])
+			R_InsertNewEdges (newedges[iv], edge_head.next);
+		R_ScanPutLine (iv);
+		if (removeedges[iv])
+			R_RemoveEdges (removeedges[iv]);
+		if (edge_head.next != &edge_tail)
+			R_StepActiveU (edge_head.next);
+	}
+	// the last scan (no need to step or sort or remove)
+	if (newedges[iv])
+		R_InsertNewEdges (newedges[iv], edge_head.next);
+	R_ScanPutLine (iv);
+	scan_last = 1;
+	__asm__ volatile ("sev");
 }
 #endif
 
@@ -789,7 +842,21 @@ void IRAM_ATTR R_ScanEdges(void) {
 #ifdef PLATFORM_RP2350
   static cvar_t *sw_pscan;
   if (!sw_pscan)
-    sw_pscan = ri.Cvar_Get("sw_pscan", "1", 0);
+    sw_pscan = ri.Cvar_Get("sw_pscan", "1", 0);	// 1: spans generated on core 1, 2: on core 0 (slower: a full span buffer is drawn on one core)
+  if (QG_SecondCore () && sw_pscan->value == 2) {
+    scan_backward = pdrawfunc == R_GenerateSpansBackward;
+    scan_wr = scan_rd = 0;
+    scan_last = scan_full = 0;
+    scan_top = r_refdef.vrect.y;
+    scan_bottom = bottom;
+    QG_RunAsync (R_ScanProduce, NULL);
+    R_ScanGenerateLines (1);
+    QG_WaitAsync ();
+    current_iv = bottom;
+    fv = (float)bottom;
+    D_DrawSurfaces();
+    return;
+  }
   if (QG_SecondCore () && sw_pscan->value) {
     scan_backward = pdrawfunc == R_GenerateSpansBackward;
     scan_wr = scan_rd = 0;

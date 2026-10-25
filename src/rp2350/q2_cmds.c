@@ -28,6 +28,12 @@ static void Rstats_f(void) {
                        (unsigned)(q2_waitback_us[i] / 1000));
         memset(q2_waitback_site, 0, sizeof(q2_waitback_site));
         memset(q2_waitback_us, 0, sizeof(q2_waitback_us));
+        extern uint32_t q2_waitasync_site[8], q2_waitasync_us[8];
+        for (int i = 0; i < 8 && q2_waitasync_site[i]; i++)
+            Com_Printf("rstats: waitasync from %08x: %u ms\n", (unsigned)q2_waitasync_site[i],
+                       (unsigned)(q2_waitasync_us[i] / 1000));
+        memset(q2_waitasync_site, 0, sizeof(q2_waitasync_site));
+        memset(q2_waitasync_us, 0, sizeof(q2_waitasync_us));
     }
     Com_Printf("rstats: core 1 stack: %u bytes used at most\n", q2_core1_stack_used());
     extern int r_max_edges, r_max_surfs;

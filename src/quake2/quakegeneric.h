@@ -23,6 +23,9 @@ void QG_Parallel2(void (*fn)(void *arg, int part), void *arg);
 void QG_RunAsync(void (*fn)(void *arg, int part), void *arg);
 void QG_WaitAsync(void);
 int QG_SecondCore(void);			// true when the other core takes jobs
+// RP2350: fn runs on the other core after the next QG_RunAsync job, or in
+// QG_WaitAsync if none came; QG_WaitAsync returns once it is done too
+void QG_DeferAsync(void (*fn)(void *arg, int part), void *arg);
 
 // RP2350: which items (rows, triangles, columns) of QG_Parallel2 work go to
 // the second core: item i is part QG_PART_OF(i); qg_split_mask has one bit

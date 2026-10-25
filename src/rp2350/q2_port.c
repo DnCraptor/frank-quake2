@@ -42,6 +42,10 @@ static void *volatile job_arg;
 static volatile uint32_t job_seq, job_done_seq;
 static volatile uint32_t core1_part_us; /* time of core 1's last part */
 static volatile bool job_async;          /* the job is not a QG_Parallel2 part */
+/* A job deferred to the next async job: core 1 runs it after that one
+ * (or QG_WaitAsync runs it here when none comes) */
+static void (*volatile defer_fn)(void *arg, int part);
+static void *volatile defer_arg;
 static volatile bool core1_ready;
 
 int64_t parallelWaitUs; /* time the game core waited for core 1 */
@@ -58,6 +62,11 @@ void __not_in_flash_func(q2_core1_main)(void) {
         __dmb();
         uint32_t t0 = time_us_32();
         job_fn(job_arg, 1);
+        if (job_async && defer_fn) {
+            void (*fn)(void *, int) = defer_fn;
+            defer_fn = NULL;
+            fn(defer_arg, 1);
+        }
         uint32_t dt = time_us_32() - t0;
         if (!job_async) core1_part_us = dt; /* for the balance of QG_Parallel2 */
         core1_busy_us += dt;
@@ -115,10 +124,18 @@ int q2_split_share(void) {
     return qg_split_k;
 }
 
+void QG_DeferAsync(void (*fn)(void *arg, int part), void *arg) {
+    QG_WaitAsync(); /* runs a previous deferred job */
+    defer_arg = arg;
+    __dmb();
+    defer_fn = fn;
+}
+
 /* A job for core 1 alone, core 0 goes on (QG_WaitAsync) */
 void QG_RunAsync(void (*fn)(void *arg, int part), void *arg) {
     if (!core1_ready) {
         fn(arg, 1);
+        QG_WaitAsync(); /* the deferred job */
         return;
     }
     QG_WaitAsync();
@@ -138,16 +155,38 @@ int QG_SecondCore(void) {
 #endif
 }
 
+uint32_t q2_waitasync_site[8], q2_waitasync_us[8]; /* "rstats" */
+
 void QG_WaitAsync(void) {
-    if (job_done_seq == job_seq) return;
+    if (job_done_seq == job_seq) {
+        if (defer_fn) { /* no async job came to take it */
+            void (*fn)(void *, int) = defer_fn;
+            defer_fn = NULL;
+            fn(defer_arg, 1);
+        }
+        return;
+    }
+    uint32_t site = (uint32_t)(uintptr_t)__builtin_return_address(0), t0 = time_us_32();
     Perf_Push(PERF_PARALLEL);
     while (job_done_seq != job_seq) __wfe();
     __dmb();
     Perf_Pop();
+    for (int i = 0; i < 8; i++)
+        if (q2_waitasync_site[i] == site || !q2_waitasync_site[i]) {
+            q2_waitasync_site[i] = site;
+            q2_waitasync_us[i] += time_us_32() - t0;
+            break;
+        }
 }
 
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
-    QG_WaitAsync();
+    if (job_done_seq != job_seq) {
+        /* core 1 is on an async job (it scans the edges while this core
+         * draws a full span buffer): do both parts here */
+        fn(arg, 0);
+        fn(arg, 1);
+        return;
+    }
 #ifdef Q2_SINGLE_CORE
     const bool two = false;
 #else

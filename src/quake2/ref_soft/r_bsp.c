@@ -27,10 +27,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 ================
 World faces on the other core (RP2350)
 
-R_RecursiveWorldNode walks the BSP here and gives each visible face, with
-its clip flags and key, to the other core through a ring; that one renders
-them (R_RenderFace: clipping, edges, surfaces), only it touches the edges
-and the surfaces meanwhile. The keys are given here, in the walk order
+The other core walks the BSP (R_RecursiveWorldNode) and gives each
+visible face, with its clip flags and key, to this one through a ring; this
+one renders them (R_RenderFace: clipping, edges, surfaces), only it touches
+the edges and the surfaces meanwhile. (The other way round, the faces, the
+bigger part, kept this core waiting.) The particles (QG_DeferAsync) move on
+the other core after its walk. The keys are given here, in the walk order
 (a face that posts nothing leaves a gap, the order is what counts).
 ================
 */
@@ -42,12 +44,11 @@ static volatile unsigned	world_wr, world_rd;
 static volatile int			world_done;
 static int					r_world_pipe;
 
-static void IRAM_ATTR R_WorldFaces (void *arg, int part)
+// this core: renders the faces of the ring until the walk is done
+static void IRAM_ATTR R_WorldFaces (void)
 {
 	unsigned	rd = world_rd;
 
-	(void)arg;
-	(void)part;
 	for (;;)
 	{
 		while (rd == world_wr)
@@ -94,6 +95,18 @@ static void IRAM_ATTR R_WorldFace (msurface_t *surf, int clipflags)
 	}
 }
 #define R_WORLDFACE R_WorldFace
+
+void R_RecursiveWorldNode (mnode_t *node, int clipflags);
+
+// the other core: the BSP walk
+static void R_WorldWalk (void *arg, int part)
+{
+	(void)arg;
+	(void)part;
+	R_RecursiveWorldNode (r_worldmodel->nodes, 15);
+	world_done = 1;
+	__asm__ volatile ("sev");
+}
 #else
 #define R_WORLDFACE R_RenderFace
 #endif
@@ -720,11 +733,8 @@ void R_RenderWorld (void)
 			world_wr = world_rd = 0;
 			world_done = 0;
 			r_world_pipe = 1;
-			QG_RunAsync (R_WorldFaces, NULL);
-			R_RecursiveWorldNode (currentmodel->nodes, 15);
-			world_done = 1;
-			__asm__ volatile ("sev");
-			QG_WaitAsync ();
+			QG_RunAsync (R_WorldWalk, NULL);
+			R_WorldFaces ();
 			r_world_pipe = 0;
 			return;
 		}
