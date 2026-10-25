@@ -36,7 +36,7 @@ the other core after its walk. The keys are given here, in the walk order
 (a face that posts nothing leaves a gap, the order is what counts).
 ================
 */
-extern unsigned char q2_scratch4k[];	// shared with the scan ring (r_edge.c): not used at the same time
+extern unsigned char q2_scratch4k[];	// shared with the scan ring (r_edge.c): the scan comes after the world
 #define WORLD_RING		1024		// words, 3 per face
 #define world_ring		((unsigned *)q2_scratch4k)
 

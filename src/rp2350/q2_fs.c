@@ -10,9 +10,9 @@
  *
  * Read-only files get a FatFs fast-seek cluster map: the paks are read at
  * random offsets, and without one each seek back walks the FAT chain.
- * Reads that land outside SRAM go through an SRAM staging buffer: the SD SPI
- * path never writes PSRAM directly (same rule as frank-castle/frank-fodder).
- * FIL objects (and their sector buffers) stay in SRAM for the same reason.
+ * Reads go straight into the caller's buffer, PSRAM included: the SD card
+ * driver reads with the CPU (spi_read_blocking, at most a FIFO's worth in
+ * flight), no DMA, so a slow PSRAM store cannot lose data.
  *
  * Core 0 only: FatFs is built without locks.
  */
@@ -35,7 +35,6 @@
 #define FIRST_FD   3
 #define MAX_FILES  12 /* the 3 paks + their pool of 8 handles + one */
 #define CLMT_WORDS 32 /* a contiguous file needs 4; fragmented ones get a heap map */
-#define STAGING    4096
 
 typedef struct {
     FIL fil;
@@ -45,16 +44,12 @@ typedef struct {
 } qfile_t;
 
 static qfile_t files[MAX_FILES];
-/* in SCRATCH_Y, the 4 KB SRAM bank nothing else uses; shared with the
- * renderer's scan ring (q2_scratch4k, r_edge.c): R_ScanEdges never reads
- * a file */
-uint8_t q2_scratch4k[STAGING] __attribute__((aligned(4), section(".scratch_y.staging")));
-#define staging q2_scratch4k
-
-static inline bool in_sram(const void *p) {
-    uintptr_t a = (uintptr_t)p;
-    return a >= 0x20000000u && a < 0x20082000u;
-}
+/* SCRATCH_Y, the 4 KB SRAM bank nothing else uses: the renderer's rings
+ * (the world faces, r_bsp.c, then the edge scan, r_edge.c). It was the SD
+ * staging buffer too, until a texture read from the card during a scan
+ * (a full span buffer draws the surfaces, which can load a texture)
+ * overwrote the scan ring: a crash on core 1 in base1. */
+uint8_t q2_scratch4k[4096] __attribute__((aligned(4), section(".scratch_y.rings")));
 
 static qfile_t *file_of(int fd) {
     int i = fd - FIRST_FD;
@@ -156,29 +151,13 @@ int _read(int fd, char *buf, int len) {
         errno = EBADF;
         return -1;
     }
-    if (in_sram(buf)) {
-        UINT got = 0;
-        FRESULT fr = f_read(&f->fil, buf, (UINT)len, &got);
-        if (fr != FR_OK) {
-            errno = fr_errno(fr);
-            return -1;
-        }
-        return (int)got;
+    UINT got = 0;
+    FRESULT fr = f_read(&f->fil, buf, (UINT)len, &got);
+    if (fr != FR_OK) {
+        errno = fr_errno(fr);
+        return -1;
     }
-    int done = 0;
-    while (done < len) {
-        UINT want = (UINT)(len - done) > STAGING ? STAGING : (UINT)(len - done), got = 0;
-        FRESULT fr = f_read(&f->fil, staging, want, &got);
-        if (fr != FR_OK) {
-            if (done) break;
-            errno = fr_errno(fr);
-            return -1;
-        }
-        memcpy(buf + done, staging, got);
-        done += (int)got;
-        if (got < want) break;
-    }
-    return done;
+    return (int)got;
 }
 
 int _write(int fd, char *buf, int len) {
@@ -343,9 +322,12 @@ int closedir(DIR *d) {
 
 void q2_sd_bench(void) {
     static FIL f;
-    static const UINT sizes[] = {512, 4096, STAGING};
+    static const UINT sizes[] = {512, 4096, 16384};
+    uint8_t *staging = malloc(16384);
+    if (!staging) return;
     if (f_open(&f, "/quake2/baseq2/pak0.pak", FA_READ) != FR_OK) {
         printf("sdtest: no pak0.pak\n");
+        free(staging);
         return;
     }
     for (unsigned k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++) {
@@ -369,4 +351,5 @@ void q2_sd_bench(void) {
     }
     printf("sdtest: 64 random 4 KB reads: %lu us each\n", (unsigned long)((time_us_32() - t0) / 64));
     f_close(&f);
+    free(staging);
 }

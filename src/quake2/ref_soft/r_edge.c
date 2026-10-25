@@ -580,7 +580,7 @@ and this core draws the surfaces (D_DrawSurfaces) and starts it again.
 */
 #define SCAN_RING	1024		// words (4 KB); a line: 1 + 2 per edge
 
-extern unsigned char q2_scratch4k[];	// the SD staging buffer: no file is read during the scan
+extern unsigned char q2_scratch4k[];	// the renderer's ring buffer (SCRATCH_Y), also the world faces' (r_bsp.c, before the scan)
 #define scan_ring ((unsigned *)q2_scratch4k)
 static volatile unsigned scan_wr, scan_rd;	// in words, never wrapped
 static volatile int	scan_last;		// the scan wrote its last line
