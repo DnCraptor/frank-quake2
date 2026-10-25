@@ -22,6 +22,82 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_local.h"
 #include "esp_attr.h"
 
+#ifdef PLATFORM_RP2350
+/*
+================
+World faces on the other core (RP2350)
+
+R_RecursiveWorldNode walks the BSP here and gives each visible face, with
+its clip flags and key, to the other core through a ring; that one renders
+them (R_RenderFace: clipping, edges, surfaces), only it touches the edges
+and the surfaces meanwhile. The keys are given here, in the walk order
+(a face that posts nothing leaves a gap, the order is what counts).
+================
+*/
+extern unsigned char q2_scratch4k[];	// shared with the scan ring (r_edge.c): not used at the same time
+#define WORLD_RING		1024		// words, 3 per face
+#define world_ring		((unsigned *)q2_scratch4k)
+
+static volatile unsigned	world_wr, world_rd;
+static volatile int			world_done;
+static int					r_world_pipe;
+
+static void IRAM_ATTR R_WorldFaces (void *arg, int part)
+{
+	unsigned	rd = world_rd;
+
+	(void)arg;
+	(void)part;
+	for (;;)
+	{
+		while (rd == world_wr)
+		{
+			if (world_done && rd == world_wr)
+				return;
+			__asm__ volatile ("wfe");
+		}
+		__asm__ volatile ("dmb" ::: "memory");
+		{
+			msurface_t	*surf = (msurface_t *)world_ring[rd % WORLD_RING];
+			int			clipflags = (int)world_ring[(rd + 1) % WORLD_RING];
+
+			r_facekey = (int)world_ring[(rd + 2) % WORLD_RING];
+			R_RenderFace (surf, clipflags);
+		}
+		rd += 3;
+		__asm__ volatile ("dmb" ::: "memory");
+		world_rd = rd;
+		__asm__ volatile ("sev");
+	}
+}
+
+static void IRAM_ATTR R_WorldFace (msurface_t *surf, int clipflags)
+{
+	if (!r_world_pipe)
+	{
+		r_facekey = r_currentkey;
+		R_RenderFace (surf, clipflags);
+		r_currentkey = r_facekey;
+		return;
+	}
+	{
+		unsigned	wr = world_wr;
+
+		while (wr + 3 - world_rd > WORLD_RING)
+			__asm__ volatile ("wfe");
+		world_ring[wr % WORLD_RING] = (unsigned)surf;
+		world_ring[(wr + 1) % WORLD_RING] = (unsigned)clipflags;
+		world_ring[(wr + 2) % WORLD_RING] = (unsigned)r_currentkey++;
+		__asm__ volatile ("dmb" ::: "memory");
+		world_wr = wr + 3;
+		__asm__ volatile ("sev");
+	}
+}
+#define R_WORLDFACE R_WorldFace
+#else
+#define R_WORLDFACE R_RenderFace
+#endif
+
 //
 // current entity info
 //
@@ -441,7 +517,7 @@ void R_DrawSubmodelPolygons (model_t *pmodel, int clipflags, mnode_t *topnode)
 			r_currentkey = ((mleaf_t *)topnode)->key;
 
 		// FIXME: use bounding-box-based frustum clipping info?
-			R_RenderFace (psurf, clipflags);
+			R_WORLDFACE (psurf, clipflags);
 		}
 	}
 }
@@ -454,6 +530,7 @@ int c_drawnode;
 R_RecursiveWorldNode
 ================
 */
+
 void R_RecursiveWorldNode (mnode_t *node, int clipflags)
 {
 	int			i, c, side, *pindex;
@@ -579,7 +656,7 @@ c_drawnode++;
 					if ((surf->flags & SURF_PLANEBACK) &&
 						(surf->visframe == r_framecount))
 					{
-						R_RenderFace (surf, clipflags);
+						R_WORLDFACE (surf, clipflags);
 					}
 
 					surf++;
@@ -592,7 +669,7 @@ c_drawnode++;
 					if (!(surf->flags & SURF_PLANEBACK) &&
 						(surf->visframe == r_framecount))
 					{
-						R_RenderFace (surf, clipflags);
+						R_WORLDFACE (surf, clipflags);
 					}
 
 					surf++;
@@ -633,6 +710,26 @@ void R_RenderWorld (void)
 	currentmodel = r_worldmodel;
 	r_pcurrentvertbase = currentmodel->vertexes;
 
+#ifdef PLATFORM_RP2350
+	{
+		static cvar_t *sw_pworld;
+		if (!sw_pworld)
+			sw_pworld = ri.Cvar_Get ("sw_pworld", "1", 0);
+		if (QG_SecondCore () && sw_pworld->value)
+		{
+			world_wr = world_rd = 0;
+			world_done = 0;
+			r_world_pipe = 1;
+			QG_RunAsync (R_WorldFaces, NULL);
+			R_RecursiveWorldNode (currentmodel->nodes, 15);
+			world_done = 1;
+			__asm__ volatile ("sev");
+			QG_WaitAsync ();
+			r_world_pipe = 0;
+			return;
+		}
+	}
+#endif
 	R_RecursiveWorldNode (currentmodel->nodes, 15);
 }
 

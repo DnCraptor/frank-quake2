@@ -923,7 +923,7 @@ cache used by a pending record is not evicted before the record is drawn
 (D_SCAlloc calls D_FlushRecords).
 ==============
 */
-#define D_MAXRECORDS 128
+#define D_MAXRECORDS 256	// RP2350 (was 128): the first flush, the first pixel write, comes later
 
 enum { DR_SPANS, DR_TURB, DR_FLAT };
 
@@ -960,6 +960,7 @@ static void D_DrawRecords(void *arg, int part) {
 void D_FlushRecords(void) {
   if (!d_numrecords)
     return;
+  QG_NEED_BACK(); // RP2350: the first pixel write of the frame waits for the page flip
   {
     extern int r_us_draw;
     int t0 = QG_Microseconds();

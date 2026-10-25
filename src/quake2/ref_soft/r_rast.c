@@ -201,13 +201,13 @@ Q2_COLD void R_EmitSkyBox (void)
 	}
 
 	// emit the six faces
-	oldkey = r_currentkey;
-	r_currentkey = 0x7ffffff0;
+	oldkey = R_FACEKEY;
+	R_FACEKEY = 0x7ffffff0;
  	for (i=0 ; i<6 ; i++)
 	{
 		R_RenderFace (r_skyfaces + i, 15);
 	}
-	r_currentkey = oldkey;		// bsp sorting order
+	R_FACEKEY = oldkey;		// bsp sorting order
 }
 
 
@@ -524,6 +524,10 @@ void R_EmitCachedEdge (void)
 R_RenderFace
 ================
 */
+#ifdef PLATFORM_RP2350
+int		r_facekey;		// the key of the next face: R_RenderFace can run on the other core
+#endif
+
 void R_RenderFace (msurface_t *fa, int clipflags)
 {
 	int			i, lindex;
@@ -713,7 +717,7 @@ void R_RenderFace (msurface_t *fa, int clipflags)
 	surface_p->insubmodel = insubmodel;
 	surface_p->spanstate = 0;
 	surface_p->entity = currententity;
-	surface_p->key = r_currentkey++;
+	surface_p->key = R_FACEKEY++;
 	surface_p->spans = NULL;
 
 	pplane = fa->plane;

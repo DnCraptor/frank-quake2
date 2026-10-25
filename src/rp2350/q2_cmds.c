@@ -21,6 +21,14 @@ static void Prof_f(void) {
 unsigned q2_core1_stack_used(void);
 
 static void Rstats_f(void) {
+    {
+        extern uint32_t q2_waitback_site[8], q2_waitback_us[8];
+        for (int i = 0; i < 8 && q2_waitback_site[i]; i++)
+            Com_Printf("rstats: waitback from %08x: %u ms\n", (unsigned)q2_waitback_site[i],
+                       (unsigned)(q2_waitback_us[i] / 1000));
+        memset(q2_waitback_site, 0, sizeof(q2_waitback_site));
+        memset(q2_waitback_us, 0, sizeof(q2_waitback_us));
+    }
     Com_Printf("rstats: core 1 stack: %u bytes used at most\n", q2_core1_stack_used());
     extern int r_max_edges, r_max_surfs;
     extern int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
@@ -49,6 +57,9 @@ static void Rstats_f(void) {
         Com_Printf("  per frame: %u alias models drawn, setup %u us; max %u verts\n", r_alias_models / f,
                    r_alias_setup_us / f, r_alias_maxverts);
         r_alias_setup_us = r_alias_models = 0;
+        extern unsigned r_sc_used_bytes;
+        Com_Printf("  per frame: %u KB of surface cache drawn from\n", r_sc_used_bytes / f / 1024);
+        r_sc_used_bytes = 0;
         Com_Printf("  screen per frame: begin %u, view %u (of which render %u), 2D %u, end %u us\n",
                    scr_us[0] / f, scr_us[1] / f, scr_us[2] / f, scr_us[3] / f, scr_us[4] / f);
         memset(scr_us, 0, 6 * sizeof(unsigned));

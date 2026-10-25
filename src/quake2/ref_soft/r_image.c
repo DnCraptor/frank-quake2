@@ -668,10 +668,26 @@ static image_t *R_FindImage_ (char *name, imagetype_t type)
 		return NULL;	// ri.Sys_Error (ERR_DROP, "R_FindImage: bad name: %s", name);
 
 	// look for it
+#ifdef PLATFORM_RP2350
+	// RP2350: the HUD looks its pics up by name every frame; the slot the
+	// name had last time is tried first (R_FindImage keeps the hints)
+	{
+		extern int R_ImageHint (const char *name);
+		i = R_ImageHint (name);
+		if (i >= 0 && i < numr_images && !strcmp (name, r_images[i].name))
+		{
+			image = &r_images[i];
+			goto found;
+		}
+	}
+#endif
 	for (i=0, image=r_images ; i<numr_images ; i++,image++)
 	{
 		if (!strcmp(name, image->name))
 		{
+#ifdef PLATFORM_RP2350
+found:
+#endif
 			if (!image->pixels[0] && image->type != it_wall)
 			{
 				// was flushed by an early free: reclaim the slot and reload
@@ -829,6 +845,24 @@ void	R_ShutdownImages (void)
 }
 
 // ESP32: timed for the "perf" recorder
+#ifdef PLATFORM_RP2350
+static short	r_image_hint[256];		// slot + 1, by name hash
+
+static unsigned R_ImageHash (const char *name)
+{
+	unsigned h = 0;
+
+	while (*name)
+		h = h * 31 + (unsigned char)*name++;
+	return (h ^ h >> 8) & 255;
+}
+
+int R_ImageHint (const char *name)
+{
+	return r_image_hint[R_ImageHash (name)] - 1;
+}
+#endif
+
 image_t	*R_FindImage (char *name, imagetype_t type)
 {
 	image_t	*image;
@@ -837,6 +871,10 @@ image_t	*R_FindImage (char *name, imagetype_t type)
 	Perf_Push (PERF_ASSET);
 	image = R_FindImage_ (name, type);
 	Perf_Pop ();
+#ifdef PLATFORM_RP2350
+	if (image && name)
+		r_image_hint[R_ImageHash (name)] = (short)(image - r_images + 1);
+#endif
 	if (perf_active && Perf_EventCount (PERF_EV_OPENS) != opens)
 		Perf_Count (PERF_EV_IMAGES, 1);
 	return image;

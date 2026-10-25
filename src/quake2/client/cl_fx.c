@@ -52,10 +52,20 @@ int			lastofs;
 CL_ClearLightStyles
 ================
 */
+#ifdef PLATFORM_RP2350
+// RP2350: the renderer's light styles keep their values from frame to frame;
+// they are copied again only when CL_RunLightStyles or a configstring changed
+// them (every 100 ms at most), not by reading 256 PSRAM structs every frame
+static qboolean	cl_lightstyles_dirty = true;
+#endif
+
 void CL_ClearLightStyles (void)
 {
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 	lastofs = -1;
+#ifdef PLATFORM_RP2350
+	cl_lightstyles_dirty = true;
+#endif
 }
 
 /*
@@ -73,6 +83,9 @@ void CL_RunLightStyles (void)
 	if (ofs == lastofs)
 		return;
 	lastofs = ofs;
+#ifdef PLATFORM_RP2350
+	cl_lightstyles_dirty = true;
+#endif
 
 	for (i=0,ls=cl_lightstyle ; i<MAX_LIGHTSTYLES ; i++, ls++)
 	{
@@ -91,6 +104,9 @@ void CL_RunLightStyles (void)
 
 void CL_SetLightstyle (int i)
 {
+#ifdef PLATFORM_RP2350
+	cl_lightstyles_dirty = true;
+#endif
 	char	*s;
 	int		j, k;
 
@@ -116,6 +132,11 @@ void CL_AddLightStyles (void)
 	int		i;
 	clightstyle_t	*ls;
 
+#ifdef PLATFORM_RP2350
+	if (!cl_lightstyles_dirty)
+		return;
+	cl_lightstyles_dirty = false;
+#endif
 	for (i=0,ls=cl_lightstyle ; i<MAX_LIGHTSTYLES ; i++, ls++)
 		V_AddLightStyle (i, ls->value[0], ls->value[1], ls->value[2]);
 }

@@ -47,7 +47,7 @@ for line in open(log, errors="replace"):
     total += n
     f = name_of(a)
     if via:
-        f = "memcpy/memset from " + f
+        f = "memcpy/memset/strcmp from " + f
     region = "sram" if a >= 0x20000000 else "flash"
     k = (f, region)
     funcs[k] = funcs.get(k, 0) + n

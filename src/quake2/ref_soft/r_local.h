@@ -145,6 +145,15 @@ extern oldrefdef_t      r_refdef;
 // ESP32: per core data of the code that both cores run (the alias triangle
 // rasterizer); r_part is the core's part of the work (QG_Parallel2): 0 or 1
 #ifdef PLATFORM_RP2350
+// RP2350: R_RenderFace keys its surfaces with r_facekey (the world faces are
+// rendered on the other core while this one walks the BSP, r_bsp.c)
+extern int r_facekey;
+#define R_FACEKEY r_facekey
+#else
+#define R_FACEKEY r_currentkey
+#endif
+
+#ifdef PLATFORM_RP2350
 // RP2350: XIP cache misses per renderer phase ("rstats")
 enum { XS_OUTSIDE, XS_SETUP, XS_WORLD, XS_BMODELS, XS_SCAN, XS_ENTITIES, XS_PARTICLES, XS_REST, XS_SURF, XS_N };
 extern unsigned r_xip_miss[XS_N], r_xip_acc[XS_N];

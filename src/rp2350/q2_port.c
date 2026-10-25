@@ -68,10 +68,20 @@ void __not_in_flash_func(q2_core1_main)(void) {
 }
 
 /* QG_NEED_BACK: the pending page flip happens at the next vsync */
+/* "rstats": where the waits for the page flip come from */
+uint32_t q2_waitback_site[8], q2_waitback_us[8];
+
 void QG_WaitBack(void) {
+    uint32_t site = (uint32_t)(uintptr_t)__builtin_return_address(0), t0 = time_us_32();
     Perf_Push(PERF_PRESENT);
     q2_video_wait_back();
     Perf_Pop();
+    for (int i = 0; i < 8; i++)
+        if (q2_waitback_site[i] == site || !q2_waitback_site[i]) {
+            q2_waitback_site[i] = site;
+            q2_waitback_us[i] += time_us_32() - t0;
+            break;
+        }
 }
 
 /* The share of the work given to core 1: k of every 16 items (rows,
@@ -137,7 +147,6 @@ void QG_WaitAsync(void) {
 }
 
 void QG_Parallel2(void (*fn)(void *arg, int part), void *arg) {
-    QG_NEED_BACK(); /* both users (spans, model triangles) draw */
     QG_WaitAsync();
 #ifdef Q2_SINGLE_CORE
     const bool two = false;

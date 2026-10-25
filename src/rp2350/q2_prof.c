@@ -29,7 +29,7 @@ static volatile uint32_t nsamples, want;
 static volatile bool running;
 static bool installed;
 
-extern char memcpy[], memset[];
+extern char memcpy[], memset[], strcmp[];
 
 /* a sample in memcpy or memset is charged to its caller (LR), tagged by
  * bit 0 (tools/prof.py shows it as "memcpy/memset from ...") */
@@ -38,7 +38,8 @@ void __not_in_flash_func(q2_prof_record)(uint32_t pc, uint32_t lr) {
     t->intr = 1u << 0;
     if (!running) return;
     t->alarm[0] = t->timerawl + 1000000 / PROF_HZ;
-    if (pc - (uint32_t)(uintptr_t)memcpy < 0x100 || pc - (uint32_t)(uintptr_t)memset < 0x100)
+    if (pc - (uint32_t)(uintptr_t)memcpy < 0x100 || pc - (uint32_t)(uintptr_t)memset < 0x100 ||
+        pc - (uint32_t)(uintptr_t)strcmp < 0x100)
         pc = (lr & ~1u) | 1u;
     samples[nsamples++] = pc;
     if (nsamples >= want) {

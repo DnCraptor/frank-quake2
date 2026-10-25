@@ -753,6 +753,10 @@ surfcache_t *D_CacheSurface (msurface_t *surface, int miplevel)
 //
 	cache = surface->cachespots[miplevel];
 
+	{	// "rstats": the surface cache bytes the frame draws from
+		extern unsigned r_sc_used_bytes;
+		r_sc_used_bytes += (surface->extents[0] >> miplevel) * (surface->extents[1] >> miplevel);
+	}
 	if (cache && !cache->dlight && surface->dlightframe != r_framecount
 			&& cache->image == r_drawsurf.image
 			&& cache->lightadj[0] == r_drawsurf.lightadj[0]

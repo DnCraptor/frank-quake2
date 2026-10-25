@@ -806,7 +806,7 @@ R_EdgeDrawing
 ================
 */
 int r_max_edges, r_max_surfs;
-unsigned r_alias_setup_us, r_alias_models, r_alias_maxverts;
+unsigned r_alias_setup_us, r_alias_models, r_alias_maxverts, r_sc_used_bytes;
 
 #ifdef PLATFORM_RP2350
 unsigned r_xip_miss[XS_N], r_xip_acc[XS_N];

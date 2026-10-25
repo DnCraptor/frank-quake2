@@ -534,7 +534,9 @@ void V_RenderView( float stereo_separation )
 		cl.refdef.rdflags = cl.frame.playerstate.rdflags;
 
 		// sort entities for better cache locality
+#ifndef PLATFORM_RP2350	// for the PC's caches; here it swaps big structs in PSRAM for nothing
         qsort( cl.refdef.entities, cl.refdef.num_entities, sizeof( cl.refdef.entities[0] ), (int (*)(const void *, const void *))entitycmpfnc );
+#endif
 	}
 
 	{	// RP2350: "rstats" stages of SCR_UpdateScreen

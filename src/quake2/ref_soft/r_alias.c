@@ -401,6 +401,7 @@ void R_AliasPreparePoints (void)
 		extern int r_us_aspans;
 		int t0 = QG_Microseconds ();
 
+		QG_NEED_BACK ();	// RP2350: the frame buffer may still be on screen
 		if (s_pmdl->num_tris >= 32)
 			QG_Parallel2 (R_AliasDrawTriangles, NULL);
 		else
