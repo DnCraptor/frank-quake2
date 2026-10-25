@@ -16,14 +16,16 @@
  * XIP cache flush that drops the lines (PSRAM ones included): the cache is
  * cleaned first so that no PSRAM write is lost. The data is assembled in
  * 4 KB sectors in SRAM (the renderer's ring buffer, unused at boot).
- * The ROM also puts the flash back at its boot timing: the board restarts
- * after a build.
+ * The SDK's XIP restart sets the flash back to its boot timing: ours is put
+ * back before any code runs from the flash again (flash_op). The board
+ * restarts after a build anyway, the engine starting from a clean state.
  */
 
 #include <stdio.h>
 #include <string.h>
 
 #include "hardware/flash.h"
+#include "hardware/structs/qmi.h"
 #include "hardware/sync.h"
 #include "hardware/xip_cache.h"
 #include "pico/stdlib.h"
@@ -47,27 +49,45 @@ typedef struct {
     int percent;
 } writer_t;
 
-/* Before each operation: the UART's pending output out first (its interrupt
- * code is partly in flash; a build without this locked up in the first
- * erase), the XIP cache cleaned (the ROM's flush drops dirty PSRAM lines). */
+/* Before each operation: the UART's pending output out, the XIP cache
+ * cleaned (the ROM's flush drops dirty PSRAM lines). */
 static void flash_op_prepare(void) {
     extern void uart_buffered_flush(void);
     uart_buffered_flush();
     xip_cache_clean_all();
 }
 
+/* The SDK ends each operation by running the boot-time XIP setup again,
+ * which sets the flash timing for the boot clock (measured: 0x60007206,
+ * divider 6, read delay 2, where ours is 0x60007504): at 504 MHz the read
+ * delay is far too short, and the next code fetched from the flash can be
+ * garbage (a fault, whose handler is in flash too: a lockup
+ * on the first erase, on some boards every time). The operation and the
+ * restore of our QMI window 0 setup run from RAM, with the interrupts off,
+ * so nothing is fetched from the flash in between. */
+static void __no_inline_not_in_flash_func(flash_op)(uint32_t offs, const uint8_t *data, uint32_t size) {
+    uint32_t timing = qmi_hw->m[0].timing, rcmd = qmi_hw->m[0].rcmd, rfmt = qmi_hw->m[0].rfmt;
+    uint32_t s = save_and_disable_interrupts();
+    if (data)
+        flash_range_program(offs, data, size);
+    else
+        flash_range_erase(offs, size);
+    qmi_hw->m[0].timing = timing;
+    qmi_hw->m[0].rcmd = rcmd;
+    qmi_hw->m[0].rfmt = rfmt;
+    __dsb();
+    __isb();
+    restore_interrupts(s);
+}
+
 static void flash_op_erase(uint32_t offs) {
     flash_op_prepare();
-    uint32_t s = save_and_disable_interrupts();
-    flash_range_erase(offs, BLOCK);
-    restore_interrupts(s);
+    flash_op(offs, NULL, BLOCK);
 }
 
 static void flash_op_program(uint32_t offs, const uint8_t *data, uint32_t size) {
     flash_op_prepare();
-    uint32_t s = save_and_disable_interrupts();
-    flash_range_program(offs, data, size);
-    restore_interrupts(s);
+    flash_op(offs, data, size);
 }
 
 static void erase_to(writer_t *w, uint32_t end) {
@@ -150,8 +170,9 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     if (!key) return 0; /* no paks: the caller says so */
 
     q2_con_highlight("Building the models and skins in flash\n");
-    q2_con_printf("from the paks (once, a few minutes)...\n");
+    q2_con_printf("from the paks (once, about 90 seconds)...\n");
     writer_t w = {.sector = -1, .percent = -1, .t0 = time_us_32()};
+    q2_con_printf("  reading the paks   ");
     assetwriter_t writer = {write_cb, progress_cb, &w};
     int n = Q_Assets_Build(gamedir, ASSETS_SIZE, &writer);
     flush(&w);
@@ -163,5 +184,5 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     q2_con_printf("\nDone: %d files in %lu s. Restarting...\n", n,
                   (unsigned long)((time_us_32() - w.t0) / 1000000));
     sleep_ms(1500);
-    platform_reboot(false); /* the flash is back at its boot timing */
+    platform_reboot(false);
 }
