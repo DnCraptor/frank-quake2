@@ -60,6 +60,7 @@ SECTIONS
         /* frank-quake2: the renderer's world (bsp, edges, spans) and model
          * (alias, polyse) code runs from SRAM, out of the XIP cache */
         *(EXCLUDE_FILE(*libgcc.a:_udivmoddi4.o *libgcc.a:_aeabi_ldivmod.o *libc.a:*lib_a-mem*.o *libc.a:*libc_a-mem*.o *libg.a:*libc_a-mem*.o *libm.a: *r_polyse.c.o *r_alias.c.o *r_edge.c.o *r_rast.c.o *r_bsp.c.o) .text*)
+        *(.flashtext*)
         *(.fini)
         /* Pull all c'tors into .text */
         *crtbegin.o(.ctors)

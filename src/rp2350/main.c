@@ -42,7 +42,14 @@ extern void q2_add_commands(void);
 extern void q2_prof_poll(void);
 extern int64_t parallelWaitUs;
 
-static uint32_t core1_stack[6 * 1024 / 4];
+uint32_t core1_stack[2560 / 4]; /* 564 bytes used at most in demo1 (rstats) */
+
+/* deepest use of core 1's stack so far ("rstats"; painted at boot) */
+unsigned q2_core1_stack_used(void) {
+    unsigned i = 0;
+    while (i < sizeof(core1_stack) / 4 && core1_stack[i] == 0xa5a5a5a5u) i++;
+    return sizeof(core1_stack) - i * 4;
+}
 
 static void wait_for_sd(void) {
     if (platform_mount_sd() == FR_OK) return;
@@ -94,6 +101,7 @@ int main(void) {
 
     psxv_init();
     q2_video_init();
+    for (unsigned i = 0; i < sizeof(core1_stack) / 4; i++) core1_stack[i] = 0xa5a5a5a5u;
     multicore_reset_core1();
     multicore_launch_core1_with_stack(q2_core1_main, core1_stack, sizeof(core1_stack));
 

@@ -18,7 +18,10 @@ static void Prof_f(void) {
     q2_prof_start(Cmd_Argc() > 1 ? atoi(Cmd_Argv(1)) : 4);
 }
 
+unsigned q2_core1_stack_used(void);
+
 static void Rstats_f(void) {
+    Com_Printf("rstats: core 1 stack: %u bytes used at most\n", q2_core1_stack_used());
     extern int r_max_edges, r_max_surfs;
     extern int r_surf_builds, r_surf_allocs, r_surf_texels, r_stat_frames;
     int n = r_stat_frames ? r_stat_frames : 1;
@@ -42,6 +45,10 @@ static void Rstats_f(void) {
         Com_Printf("  per frame: %u.%02u D_DrawSurfaces, %u.%02u scan flushes\n", r_ds_calls / f,
                    r_ds_calls * 100 / f % 100, r_scan_flushes / f, r_scan_flushes * 100 / f % 100);
         r_ds_calls = r_scan_flushes = 0;
+        extern unsigned r_alias_setup_us, r_alias_models, r_alias_maxverts;
+        Com_Printf("  per frame: %u alias models drawn, setup %u us; max %u verts\n", r_alias_models / f,
+                   r_alias_setup_us / f, r_alias_maxverts);
+        r_alias_setup_us = r_alias_models = 0;
         Com_Printf("  screen per frame: begin %u, view %u (of which render %u), 2D %u, end %u us\n",
                    scr_us[0] / f, scr_us[1] / f, scr_us[2] / f, scr_us[3] / f, scr_us[4] / f);
         memset(scr_us, 0, 6 * sizeof(unsigned));

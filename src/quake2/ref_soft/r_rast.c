@@ -111,7 +111,8 @@ R_InitSkyBox
 
 ================
 */
-void R_InitSkyBox (void)
+#include "esp_attr.h"
+Q2_COLD void R_InitSkyBox (void)
 {
 	int		i;
 	extern model_t *loadmodel;
@@ -168,7 +169,7 @@ void R_InitSkyBox (void)
 R_EmitSkyBox
 ================
 */
-void R_EmitSkyBox (void)
+Q2_COLD void R_EmitSkyBox (void)
 {
 	int		i, j;
 	int		oldkey;

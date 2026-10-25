@@ -102,7 +102,7 @@ static aedge_t	aedges[12] = {
 **
 ** Checks a specific alias frame bounding box
 */
-uint32_t R_AliasCheckFrameBBox( daliasframe_t *frame, float worldxf[3][4] )
+Q2_COLD uint32_t R_AliasCheckFrameBBox( daliasframe_t *frame, float worldxf[3][4] )
 {
 	uint32_t aggregate_and_clipcode = ~0U, 
 		          aggregate_or_clipcode = 0;
@@ -191,7 +191,7 @@ uint32_t R_AliasCheckFrameBBox( daliasframe_t *frame, float worldxf[3][4] )
 	return BBOX_MUST_CLIP_XY;
 }
 
-qboolean R_AliasCheckBBox (void)
+Q2_COLD qboolean R_AliasCheckBBox (void)
 {
 	uint32_t ccodes[2] = { 0, 0 };
 
@@ -344,8 +344,20 @@ static void R_AliasTransformPart (void *arg, int part)
 
 void R_AliasPreparePoints (void)
 {
+#ifdef PLATFORM_RP2350
+#ifndef FINALVERTS_SRAM
+#define FINALVERTS_SRAM 384	/* all but the bosses, the tank and the commander */
+#endif
+	// in SRAM: every triangle reads three of them, in any order; only the
+	// bosses have more than 512 vertices, they use the PSRAM buffer
+	static finalvert_t	finalverts_sram[FINALVERTS_SRAM + ((CACHE_SIZE - 1) / sizeof(finalvert_t)) + 3];
+	static finalvert_t	finalverts_psram[MAXALIASVERTS +
+						((CACHE_SIZE - 1) / sizeof(finalvert_t)) + 3] EXT_RAM_BSS;
+	finalvert_t	*finalverts = s_pmdl->num_xyz <= FINALVERTS_SRAM ? finalverts_sram : finalverts_psram;
+#else
 	static finalvert_t	finalverts[MAXALIASVERTS +
 						((CACHE_SIZE - 1) / sizeof(finalvert_t)) + 3] EXT_RAM_BSS;
+#endif
 	finalvert_t	*pfinalverts;
 
 //PGM
@@ -407,7 +419,7 @@ void R_AliasPreparePoints (void)
 R_AliasSetUpTransform
 ================
 */
-void R_AliasSetUpTransform (void)
+Q2_COLD void R_AliasSetUpTransform (void)
 {
 	int				i;
 	static float	viewmatrix[3][4];
@@ -889,7 +901,7 @@ void R_AliasProjectAndClipTestFinalVert( finalvert_t *fv )
 R_AliasSetupSkin
 ===============
 */
-static qboolean R_AliasSetupSkin (void)
+Q2_COLD static qboolean R_AliasSetupSkin (void)
 {
 	int				skinnum;
 	image_t			*pskindesc;
@@ -929,7 +941,7 @@ R_AliasSetupLighting
   FIXME: put lighting into tables
 ================
 */
-void R_AliasSetupLighting (void)
+Q2_COLD void R_AliasSetupLighting (void)
 {
 	alight_t		lighting;
 	float			lightvec[3] = {-1, 0, 0};
@@ -1019,7 +1031,7 @@ R_AliasSetupFrames
 
 =================
 */
-void R_AliasSetupFrames( dmdl_t *pmdl )
+Q2_COLD void R_AliasSetupFrames( dmdl_t *pmdl )
 {
 	int thisframe = currententity->frame;
 	int lastframe = currententity->oldframe;
@@ -1101,6 +1113,9 @@ void R_AliasDrawModel (void)
 	extern void R_PolysetDrawSpans8_66( void * );
 	extern void R_PolysetDrawSpansConstant8_33( void * );
 	extern void R_PolysetDrawSpansConstant8_66( void * );
+
+	int		t_setup = QG_Microseconds ();	// "rstats"
+	extern unsigned r_alias_setup_us, r_alias_models;
 
 	s_pmdl = (dmdl_t *)currentmodel->extradata;
 
@@ -1233,6 +1248,13 @@ void R_AliasDrawModel (void)
 	else
 		s_ziscale = (float)0x8000 * (float)0x10000;
 
+	r_alias_setup_us += QG_Microseconds () - t_setup;
+	r_alias_models++;
+	{
+		extern unsigned r_alias_maxverts;
+		if ((unsigned)s_pmdl->num_xyz > r_alias_maxverts)
+			r_alias_maxverts = s_pmdl->num_xyz;
+	}
 	R_AliasPreparePoints ();
 
 	if ( ( currententity->flags & RF_WEAPONMODEL ) && ( r_lefthand->value == 1.0F ) )

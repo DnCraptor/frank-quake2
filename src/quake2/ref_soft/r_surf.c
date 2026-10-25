@@ -453,10 +453,15 @@ void DrawSurfaceBlock8_cols(const int SHIFT, const int *lightptr, const unsigned
 #define DrawSurfaceBlock8_generic(SHIFT) \
 	DrawSurfaceBlock8_cols (SHIFT, (const int *)r_lightptr, pbasesource, prowdestbase)
 
-void IRAM_ATTR R_DrawSurfaceBlock8_mip0(void) { DrawSurfaceBlock8_generic(4); }
-void IRAM_ATTR R_DrawSurfaceBlock8_mip1(void) { DrawSurfaceBlock8_generic(3); }
-void IRAM_ATTR R_DrawSurfaceBlock8_mip2(void) { DrawSurfaceBlock8_generic(2); }
-void IRAM_ATTR R_DrawSurfaceBlock8_mip3(void) { DrawSurfaceBlock8_generic(1); }
+#ifdef PLATFORM_RP2350	// not used: R_DrawSurfaceColumns draws the blocks
+#define SURFBLOCK_ATTR Q2_COLD
+#else
+#define SURFBLOCK_ATTR IRAM_ATTR
+#endif
+void SURFBLOCK_ATTR R_DrawSurfaceBlock8_mip0(void) { DrawSurfaceBlock8_generic(4); }
+void SURFBLOCK_ATTR R_DrawSurfaceBlock8_mip1(void) { DrawSurfaceBlock8_generic(3); }
+void SURFBLOCK_ATTR R_DrawSurfaceBlock8_mip2(void) { DrawSurfaceBlock8_generic(2); }
+void SURFBLOCK_ATTR R_DrawSurfaceBlock8_mip3(void) { DrawSurfaceBlock8_generic(1); }
 
 #ifdef PLATFORM_RP2350
 static void IRAM_ATTR DrawSurfaceBlock8_mip (int mip, const int *lightptr, const unsigned char *psource,

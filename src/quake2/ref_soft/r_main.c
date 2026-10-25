@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 viddef_t vid;
 refimport_t ri;
 
-unsigned d_8to24table[256];
+unsigned d_8to24table[256] EXT_RAM_BSS;	// RP2350: not per pixel
 
 static qboolean d_pzbuffer_internal = false; // pzbuffer came from internal RAM
 
@@ -45,7 +45,7 @@ model_t *r_worldmodel;
 static byte *r_colormap_pcx; // ESP32: colormap.pcx (vid.colormap is a copy)
 byte *r_warpbuffer; // ESP32: allocated when the view is first warped (underwater)
 
-swstate_t sw_state;
+swstate_t sw_state EXT_RAM_BSS;
 
 void *colormap;
 vec3_t viewlightvec;
@@ -192,7 +192,7 @@ unsigned int d_zwidth;
 
 #endif // !id386
 
-byte r_notexture_buffer[1024];
+byte r_notexture_buffer[1024] EXT_RAM_BSS;
 
 /*
 ==================
@@ -806,6 +806,7 @@ R_EdgeDrawing
 ================
 */
 int r_max_edges, r_max_surfs;
+unsigned r_alias_setup_us, r_alias_models, r_alias_maxverts;
 
 #ifdef PLATFORM_RP2350
 unsigned r_xip_miss[XS_N], r_xip_acc[XS_N];

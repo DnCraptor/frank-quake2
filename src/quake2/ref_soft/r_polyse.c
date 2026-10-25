@@ -892,7 +892,7 @@ void R_PolysetDrawThreshSpans8 (spanpackage_t *pspanpackage)
 R_PolysetDrawSpans8
 ================
 */
-void R_PolysetDrawSpans8_33( spanpackage_t *pspanpackage)
+Q2_COLD void R_PolysetDrawSpans8_33( spanpackage_t *pspanpackage)
 {
 	int		lcount;
 	byte	*lpdest;
@@ -956,7 +956,7 @@ void R_PolysetDrawSpans8_33( spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
-void R_PolysetDrawSpansConstant8_33( spanpackage_t *pspanpackage)
+Q2_COLD void R_PolysetDrawSpansConstant8_33( spanpackage_t *pspanpackage)
 {
 	int		lcount;
 	byte	*lpdest;
@@ -1000,7 +1000,7 @@ void R_PolysetDrawSpansConstant8_33( spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
-void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage)
+Q2_COLD void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage)
 {
 	int		lcount;
 	byte	*lpdest;
@@ -1065,7 +1065,7 @@ void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
-void R_PolysetDrawSpansConstant8_66( spanpackage_t *pspanpackage)
+Q2_COLD void R_PolysetDrawSpansConstant8_66( spanpackage_t *pspanpackage)
 {
 	int		lcount;
 	byte	*lpdest;

@@ -9,4 +9,8 @@
  * that the PSRAM traffic keeps thrashing (.time_critical lands in .data) */
 #define IRAM_ATTR __attribute__((section(".time_critical.q2"), noinline))
 
+/* Q2_COLD: stays in flash even in a file whose code runs from SRAM
+ * (memmap_quake2.ld keeps .flashtext in flash) */
+#define Q2_COLD __attribute__((section(".flashtext.q2"), noinline))
+
 #endif
