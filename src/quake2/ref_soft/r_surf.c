@@ -735,6 +735,9 @@ int D_log2 (int num)
 D_CacheSurface
 ================
 */
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 surfcache_t *D_CacheSurface (msurface_t *surface, int miplevel)
 {
 	surfcache_t     *cache;

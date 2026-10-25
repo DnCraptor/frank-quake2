@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_light.c
 
 #include "r_local.h"
+#include "esp_attr.h"
 
 int	r_dlightframecount;
 
@@ -37,6 +38,9 @@ DYNAMIC LIGHTS
 R_MarkLights
 =============
 */
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 void R_MarkLights (dlight_t *light, int bit, mnode_t *node)
 {
 	mplane_t	*splitplane;
@@ -117,6 +121,9 @@ vec3_t	pointcolor;
 mplane_t		*lightplane;		// used as shadow plane
 vec3_t			lightspot;
 
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 int RecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 {
 	float		front, back, frac;

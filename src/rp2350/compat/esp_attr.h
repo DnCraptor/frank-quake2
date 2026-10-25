@@ -13,4 +13,8 @@
  * (memmap_quake2.ld keeps .flashtext in flash) */
 #define Q2_COLD __attribute__((section(".flashtext.q2"), noinline))
 
+/* Q2_SCRATCH: a small hot function in SCRATCH_X (the 4 KB SRAM bank of the
+ * HDMI interrupt, which leaves ~2.5 KB free), when the main SRAM is full */
+#define Q2_SCRATCH __attribute__((section(".scratch_x.q2"), noinline))
+
 #endif

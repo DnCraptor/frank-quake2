@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // snd_mix.c -- portable code to mix sounds for snd_dma.c
 
 #include "client.h"
+#include "esp_attr.h"
 #include "snd_loc.h"
 
 #define	PAINTBUFFER_SIZE	2048
@@ -321,6 +322,9 @@ void S_InitScaletable (void)
 
 
 
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 void S_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count, int offset)
 {
 	int 	data;

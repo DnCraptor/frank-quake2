@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_misc.c
 
 #include "r_local.h"
+#include "esp_attr.h"
 #include "../other/q_arena.h"
 
 #define NUM_MIPS 4
@@ -185,6 +186,9 @@ void R_TransformFrustum(void) {
 TransformVector
 ================
 */
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 void TransformVector(vec3_t in, vec3_t out) {
   out[0] = DotProduct(in, vright);
   out[1] = DotProduct(in, vup);

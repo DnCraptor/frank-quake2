@@ -92,6 +92,9 @@ ESP32: the span drawing state set by D_CalcGradients (globals), for the span
 drawers below, which take it as a parameter so that both cores can draw
 =============
 */
+#ifdef PLATFORM_RP2350
+Q2_SCRATCH
+#endif
 void D_GetSpanState(spanstate_t *st) {
   st->sdivzstepu = d_sdivzstepu;
   st->tdivzstepu = d_tdivzstepu;
