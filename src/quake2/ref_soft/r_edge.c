@@ -51,6 +51,20 @@ edge_t *newedges[MAXHEIGHT];
 edge_t *removeedges[MAXHEIGHT];
 
 espan_t *span_p, *max_span_p;
+
+// RP2350: the spans are written through the uncached PSRAM alias (no line
+// fill for lines only written); D_DrawSurfaces drops the span buffer from
+// the XIP cache before reading it. The links stay cached addresses.
+#ifdef PLATFORM_RP2350
+#define SPAN_EMIT(span, u_, count_, v_, next_) do { \
+    espan_t *ws_ = (espan_t *)((uintptr_t)(span) + 0x04000000u); \
+    ws_->u = (u_); ws_->count = (count_); ws_->v = (v_); ws_->pnext = (next_); \
+  } while (0)
+#else
+#define SPAN_EMIT(span, u_, count_, v_, next_) do { \
+    (span)->u = (u_); (span)->count = (count_); (span)->v = (v_); (span)->pnext = (next_); \
+  } while (0)
+#endif
 #ifdef PLATFORM_RP2350
 static espan_t *r_scan_basespan;	// R_ScanEdges
 #endif
@@ -273,10 +287,7 @@ void R_CleanupSpan(void) {
   iu = edge_tail_u_shift20;
   if (iu > surf->last_u) {
     span = span_p++;
-    span->u = surf->last_u;
-    span->count = iu - span->u;
-    span->v = current_iv;
-    span->pnext = surf->spans;
+    SPAN_EMIT(span, surf->last_u, iu - surf->last_u, current_iv, surf->spans);
     surf->spans = span;
   }
 
@@ -341,10 +352,7 @@ void R_LeadingEdgeBackwards(edge_t *edge) {
 
     if (iu > surf2->last_u) {
       span = span_p++;
-      span->u = surf2->last_u;
-      span->count = iu - span->u;
-      span->v = current_iv;
-      span->pnext = surf2->spans;
+      SPAN_EMIT(span, surf2->last_u, iu - surf2->last_u, current_iv, surf2->spans);
       surf2->spans = span;
     }
 
@@ -378,10 +386,7 @@ void R_TrailingEdge(surf_t *surf, edge_t *edge) {
       iu = edge->u >> 20;
       if (iu > surf->last_u) {
         span = span_p++;
-        span->u = surf->last_u;
-        span->count = iu - span->u;
-        span->v = current_iv;
-        span->pnext = surf->spans;
+        SPAN_EMIT(span, surf->last_u, iu - surf->last_u, current_iv, surf->spans);
         surf->spans = span;
       }
 
@@ -485,10 +490,7 @@ void R_LeadingEdge(edge_t *edge) {
 
       if (iu > surf2->last_u) {
         span = span_p++;
-        span->u = surf2->last_u;
-        span->count = iu - span->u;
-        span->v = current_iv;
-        span->pnext = surf2->spans;
+        SPAN_EMIT(span, surf2->last_u, iu - surf2->last_u, current_iv, surf2->spans);
         surf2->spans = span;
       }
 
@@ -1333,6 +1335,10 @@ void D_DrawSurfaces(void) {
   }
 #endif
   R_XipPhase(XS_SURF);
+#ifdef PLATFORM_RP2350
+  if (r_scan_basespan && span_p > r_scan_basespan)
+    QG_Uncache(r_scan_basespan, (byte *)span_p - (byte *)r_scan_basespan);	// written through
+#endif
 
   //	currententity = NULL;	//&r_worldentity;
   VectorSubtract(r_origin, vec3_origin, modelorg);

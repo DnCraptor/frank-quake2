@@ -231,6 +231,13 @@ void *QG_WriteThrough(void *p, int size) {
     return (void *)(a + 0x04000000u);
 }
 
+void QG_Uncache(void *p, int size) {
+    uintptr_t a = (uintptr_t)p;
+    if (a < 0x11000000u || a >= 0x11800000u || size <= 0) return;
+    uintptr_t start = a & ~(uintptr_t)7, end = (a + (uintptr_t)size + 7) & ~(uintptr_t)7;
+    xip_cache_invalidate_range(start - XIP_BASE, end - start);
+}
+
 /* the "perf" recorder only records the game */
 int QG_IsGameTask(void) {
     return get_core_num() == 0;

@@ -38,6 +38,8 @@ extern volatile int qg_split_k;			// bits set in qg_split_mask (of 16)
 // (PSRAM: a cache line fill per written line saved); the range is first
 // written back and dropped from the cache. p itself elsewhere.
 void *QG_WriteThrough(void *p, int size);
+// RP2350: drops [p, p + size) from the cache (written through, read next)
+void QG_Uncache(void *p, int size);
 
 // RP2350: after a page flip the buffer to draw into is still on screen until
 // the next vsync; the renderer calls this before its first pixel write, so
