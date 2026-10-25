@@ -54,8 +54,8 @@ static bool psram_ready;
 
 static void sram_init(void) {
     uintptr_t b = ((uintptr_t)end + 15) & ~(uintptr_t)15;
-    sram_size = (uintptr_t)__HeapLimit - b;
-    sram_msp = create_mspace_with_base((void *)b, sram_size, 0);
+    sram_size = (uintptr_t)__HeapLimit > b ? (uintptr_t)__HeapLimit - b : 0;
+    if (sram_size >= 1024) sram_msp = create_mspace_with_base((void *)b, sram_size, 0);
 }
 
 /* After psram_init(): until then everything comes from SRAM (stdio, the
@@ -75,6 +75,7 @@ void q2_heap_report(void) {
 
 static void *sram_alloc(size_t n) {
     if (!sram_msp) sram_init();
+    if (!sram_msp) return NULL; /* too little SRAM left for a heap */
     void *p = mspace_malloc(sram_msp, n);
     if (p) sram_used += mspace_usable_size(p);
     return p;
@@ -102,7 +103,7 @@ void q2_free(void *p) {
     if (is_psram(p)) {
         psram_used -= psram_usable_size(p);
         psram_free(p);
-    } else {
+    } else if (sram_msp) {
         sram_used -= mspace_usable_size(p);
         mspace_free(sram_msp, p);
     }
@@ -156,7 +157,7 @@ void *_calloc_r(struct _reent *r, size_t a, size_t b) {
 void *_memalign_r(struct _reent *r, size_t align, size_t n) {
     if (!sram_msp) sram_init();
     void *p = NULL;
-    {
+    if (sram_msp) {
         p = mspace_memalign(sram_msp, align, n);
         if (p) sram_used += mspace_usable_size(p);
     }

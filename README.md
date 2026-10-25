@@ -17,40 +17,50 @@ from frank-castle. Work in progress.
 - demo1 timedemo: ~33 fps (689 frames in ~20.5 s); 30-45 fps in real-time
   play
 
-## SD card
+## Installing
 
-Copy the retail game data (patched to 3.20) to `/quake2/baseq2/`:
+1. Hold BOOTSEL, plug the board in, and copy the release's
+   `m2p2_frank-quake2_A_BB.uf2` to the RP2350 drive (or
+   `picotool load -f FILE.uf2`).
+2. Copy the retail game data (patched to 3.20) to the SD card (FAT32 or
+   exFAT):
 
-```
-/quake2/baseq2/pak0.pak
-/quake2/baseq2/pak1.pak
-/quake2/baseq2/pak2.pak
-```
+   ```
+   /quake2/baseq2/pak0.pak
+   /quake2/baseq2/pak1.pak
+   /quake2/baseq2/pak2.pak
+   ```
 
-Saves and `config.cfg` are written there too. An optional `/quake2/args.txt`
-adds to the command line (e.g. `+map base1`). No game data is included in
-this repository.
+3. Start the board. The first start builds the models and skins into flash
+   from the paks (about 90 seconds, once) and restarts; then the game starts.
+
+Saves and `config.cfg` are written to `/quake2/baseq2/`. An optional
+`/quake2/args.txt` adds to the command line (e.g. `+map base1`). No game data
+is included in this repository or in the releases.
 
 ## Models and skins in flash
 
-8 MB of PSRAM is not enough for the biggest maps unless the models and their
-skins are used straight from flash, as on the ESP32-S3. Build the image once
-from your paks and flash it next to the firmware (it stays across firmware
-updates):
+8 MB of PSRAM is not enough for the maps unless the models and their skins
+are used straight from flash, as on the ESP32-S3: the image (about 14 MB,
+at 0x101C0000) is built on the board from the paks, again when the paks
+change, or when `/quake2/assets.rebuild` exists on the card (deleted after
+the build). It stays across firmware updates.
+
+It can also be built on a PC and flashed (the board then keeps it as it is):
 
 ```
 tools/mkassets.py assets.bin pak2.pak pak1.pak pak0.pak
 ./flash.sh assets assets.bin       # picotool, at 0x101C0000
 ```
 
-It is required: without it even the first maps run out of memory.
-
 ## Building
 
 ```
 ./build.sh            # M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash
 ./flash.sh            # picotool, board in BOOTSEL
+./swd_flash.sh        # or over SWD with a Debugprobe
 ./flash.sh frank-quake2-diag   # bring-up firmware (HDMI, PSRAM, SD, I2S, USB)
+./release.sh [A.BB] [--publish]  # release/m2p2_frank-quake2_A_BB.uf2 (+ GitHub release)
 ```
 
 Options (cmake `-D...`):

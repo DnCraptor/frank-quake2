@@ -10,7 +10,8 @@
  *
  * SD card: /quake2/baseq2/pak0.pak (pak1, pak2 from the 3.20 patch),
  * optional /quake2/args.txt (extra command line, e.g. "+map base1").
- * Flash: the model/skin image from tools/mkassets.py at Q2_ASSETS_OFFSET.
+ * Flash: the model/skin image at Q2_ASSETS_OFFSET, built from the paks on the
+ * first start (or made by tools/mkassets.py).
  */
 
 #include <stdio.h>
@@ -29,11 +30,6 @@
 #include "quakegeneric.h"
 #include "other/q_assets.h"
 
-#ifndef Q2_ASSETS_OFFSET
-#define Q2_ASSETS_OFFSET 0x1C0000
-#endif
-#define Q2_ASSETS_SIZE (16 * 1024 * 1024 - Q2_ASSETS_OFFSET)
-
 #define BASEDIR "/quake2"
 #define MAX_ARGS 32
 
@@ -42,7 +38,7 @@ extern void q2_add_commands(void);
 extern void q2_prof_poll(void);
 extern int64_t parallelWaitUs;
 
-uint32_t core1_stack[4096 / 4]; /* the BSP walk recurses on core 1; rstats shows the use */
+uint32_t core1_stack[3072 / 4]; /* the BSP walk recurses on core 1: 1.8 KB at most in demo1 and base1 (rstats) */
 
 /* deepest use of core 1's stack so far ("rstats"; painted at boot) */
 unsigned q2_core1_stack_used(void) {
@@ -85,9 +81,11 @@ static int build_args(char **argv) {
     return argc;
 }
 
+/* the model/skin image in flash, built from the paks when needed
+ * (q2_assets_flash.c) */
 static void map_assets(void) {
-    const void *base = (const void *)(XIP_BASE + Q2_ASSETS_OFFSET);
-    int n = Q_Assets_Init(base, Q2_ASSETS_SIZE);
+    extern int q2_assets_init(const char *gamedir, const char *rebuild_flag);
+    int n = q2_assets_init(BASEDIR "/baseq2", BASEDIR "/assets.rebuild");
     if (n)
         q2_con_printf("Flash assets: %d models and skins\n", n);
     else

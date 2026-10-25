@@ -208,6 +208,7 @@ add_executable(frank-quake2
     src/rp2350/q2_fs.c
     src/rp2350/q2_prof.c
     src/rp2350/q2_cmds.c
+    src/rp2350/q2_assets_flash.c
     $<TARGET_OBJECTS:quake2_core>
 )
 # IRQ code must stay in SRAM: stop GCC from turning copy loops into calls
@@ -219,7 +220,7 @@ target_compile_definitions(frank-quake2 PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1
 target_compile_options(frank-quake2 PRIVATE -fsigned-char)
 target_compile_definitions(frank-quake2 PRIVATE PICO_MALLOC_PANIC=0)
 target_compile_definitions(frank-quake2 PRIVATE ${Q2_DEFINES})
-target_link_libraries(frank-quake2 q2_platform hardware_dma hardware_xip_cache pico_multicore pico_sync)
+target_link_libraries(frank-quake2 q2_platform hardware_dma hardware_xip_cache hardware_flash pico_multicore pico_sync)
 pico_set_linker_script(frank-quake2 ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
 target_link_options(frank-quake2 PRIVATE
     -Wl,--no-enum-size-warning
