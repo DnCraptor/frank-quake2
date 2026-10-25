@@ -93,7 +93,20 @@ void q2_video_wait_vsync(void) {
  * (QG_NEED_BACK) before its first pixel write, not here. */
 volatile int qg_back_busy;
 
+bool q2_vsync = true; /* false: flip at once (tearing, no wait) */
+
 uint8_t *q2_video_present(void) {
+    if (!q2_vsync) {
+        /* the line callback takes the new buffer from its next line on; the
+         * one it showed is drawn into right away */
+        while (fb_pending >= 0) tight_loop_contents();
+        __dmb();
+        int old = fb_front;
+        fb_front = fb_back;
+        fb_back = old;
+        qg_back_busy = 0;
+        return fb[fb_back];
+    }
     while (fb_pending >= 0) tight_loop_contents(); /* one flip in flight at most */
     qg_back_busy = 0;
     __dmb();

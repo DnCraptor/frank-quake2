@@ -5,7 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Console commands of the port: "prof SECONDS" (PC sampling, q2_prof.c),
- * "sysmem" (the C heaps), "sdtest" (SD card read speed).
+ * "sysmem" (the C heaps), "sdtest" (SD card read speed), "vsync 0/1",
+ * "rstats" (renderer statistics).
  */
 
 #include "qcommon/qcommon.h"
@@ -74,6 +75,12 @@ static void Rstats_f(void) {
     r_surf_builds = r_surf_allocs = r_surf_texels = r_stat_frames = 0;
 }
 
+static void Vsync_f(void) {
+    extern bool q2_vsync;
+    if (Cmd_Argc() > 1) q2_vsync = atoi(Cmd_Argv(1)) != 0;
+    Com_Printf("vsync %d (0: no wait for the page flip, the picture tears)\n", q2_vsync);
+}
+
 static void Sysmem_f(void) {
     q2_heap_report();
 }
@@ -82,5 +89,6 @@ void q2_add_commands(void) {
     Cmd_AddCommand("prof", Prof_f);
     Cmd_AddCommand("sysmem", Sysmem_f);
     Cmd_AddCommand("rstats", Rstats_f);
+    Cmd_AddCommand("vsync", Vsync_f);
     Cmd_AddCommand("sdtest", q2_sd_bench);
 }

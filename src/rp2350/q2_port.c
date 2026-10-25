@@ -138,7 +138,9 @@ void QG_RunAsync(void (*fn)(void *arg, int part), void *arg) {
         QG_WaitAsync(); /* the deferred job */
         return;
     }
-    QG_WaitAsync();
+    /* the previous job, not the deferred one: core 1 takes it after this */
+    while (job_done_seq != job_seq) __wfe();
+    __dmb();
     job_fn = fn;
     job_arg = arg;
     job_async = true;

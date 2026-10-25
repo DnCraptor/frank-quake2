@@ -63,7 +63,8 @@ Options (cmake `-D...`):
   (clk_peri MHz, 168), `Q2_FB_COUNT`, `Q2_SAMPLE_RATE`.
 
 Faster, blurrier textures (console or `/quake2/args.txt`): `sw_mipcap 2`
-(+9% in demo1) or `sw_mipscale 2` (+5%).
+(+9% in demo1) or `sw_mipscale 2` (+5%). `vsync 0` stops waiting for the
+page flip at 60 Hz: a few % faster, but the picture tears.
 
 Debug console: UART0 on GPIO0/1, 115200. Lines typed there go to the Quake
 console; `~BOOT~` reboots into BOOTSEL.
