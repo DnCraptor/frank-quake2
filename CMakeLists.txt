@@ -22,6 +22,16 @@ set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: d
 # The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
 set(Q2_ASSETS_OFFSET "0x1C0000" CACHE STRING "Flash offset of the asset image")
 set(Q2_SAMPLE_RATE "11025" CACHE STRING "Sound output rate: 11025 or 22050")
+# One output per build: I2S (the board's DAC, GPIO 9-11) or HDMI audio
+# (44.1 kHz data islands, 4x the 11025 Hz mix)
+set(AUDIO_TYPE "I2S" CACHE STRING "Audio output: I2S or HDMI")
+set_property(CACHE AUDIO_TYPE PROPERTY STRINGS I2S HDMI)
+if(NOT AUDIO_TYPE STREQUAL "I2S" AND NOT AUDIO_TYPE STREQUAL "HDMI")
+    message(FATAL_ERROR "AUDIO_TYPE must be I2S or HDMI")
+endif()
+if(AUDIO_TYPE STREQUAL "HDMI" AND NOT Q2_SAMPLE_RATE STREQUAL "11025")
+    message(FATAL_ERROR "HDMI audio needs Q2_SAMPLE_RATE 11025 (a quarter of 44.1 kHz)")
+endif()
 # 3: the game never waits for vsync to free a buffer, but the 76.8 KB it
 # takes leaves no room for the z-buffer in SRAM, which is worth more
 set(Q2_FB_COUNT "2" CACHE STRING "8-bit framebuffers in SRAM: 2 or 3")
@@ -112,6 +122,7 @@ set(Q2_DEFINES
     Q2_VERSION="${Q2_VERSION}"
     Q2_ASSETS_OFFSET=${Q2_ASSETS_OFFSET}
     Q2_SAMPLE_RATE=${Q2_SAMPLE_RATE}
+    Q2_AUDIO_${AUDIO_TYPE}=1
     Q2_FB_COUNT=${Q2_FB_COUNT}
 )
 

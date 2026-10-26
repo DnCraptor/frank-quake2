@@ -23,6 +23,11 @@ unsigned q2_core1_stack_used(void);
 
 static void Rstats_f(void) {
     {
+        extern volatile uint32_t psxv_resyncs, psxv_irq_max_us;
+        Com_Printf("rstats: HDMI resyncs %u, IRQ max %u us\n", (unsigned)psxv_resyncs, (unsigned)psxv_irq_max_us);
+        psxv_irq_max_us = 0;
+    }
+    {
         extern uint32_t q2_waitback_site[8], q2_waitback_us[8];
         for (int i = 0; i < 8 && q2_waitback_site[i]; i++)
             Com_Printf("rstats: waitback from %08x: %u ms\n", (unsigned)q2_waitback_site[i],

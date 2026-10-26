@@ -9,6 +9,7 @@
 # Defaults: M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash (read delays tuned
 # per board with the diag firmware; see CMakeLists.txt).
 # USB is always the keyboard/mouse host; the debug console is UART0 on GPIO0/1.
+# AUDIO=HDMI ./build.sh: sound over HDMI instead of the I2S DAC (default I2S).
 
 set -e
 
@@ -16,12 +17,13 @@ BOARD=${1:-M2}
 CPU=${2:-504}
 PSRAM=${3:-168}
 FLASH=${4:-126}
+AUDIO=${AUDIO:-I2S}
 
 if [ -z "$PICO_SDK_PATH" ] || [ ! -f "$PICO_SDK_PATH/pico_sdk_init.cmake" ]; then
     export PICO_SDK_PATH="$HOME/pico/pico-sdk"
 fi
 
-echo "Building frank-quake2: Board=$BOARD CPU=${CPU}MHz PSRAM=${PSRAM}MHz Flash=${FLASH}MHz"
+echo "Building frank-quake2: Board=$BOARD CPU=${CPU}MHz PSRAM=${PSRAM}MHz Flash=${FLASH}MHz Audio=$AUDIO"
 
 rm -rf ./build
 mkdir build
@@ -31,5 +33,6 @@ cmake -DPICO_PLATFORM=rp2350 \
       -DCPU_SPEED=$CPU \
       -DPSRAM_SPEED=$PSRAM \
       -DFLASH_SPEED=$FLASH \
+      -DAUDIO_TYPE=$AUDIO \
       ..
 make -j8

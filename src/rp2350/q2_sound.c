@@ -5,14 +5,27 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Sound output (SNDDMA_*): the engine mixes 16-bit stereo into a ring in
- * SRAM, ahead of the play position; the I2S driver's DMA IRQ (core 0) copies
- * the ring out and moves the play position, like the DMA of a PC sound card.
- * A ring frame (left, right int16) is exactly an I2S frame (L | R << 16).
+ * PSRAM, ahead of the play position, which the output moves like the DMA of
+ * a PC sound card. A ring frame (left, right int16) is L | R << 16.
+ *
+ * AUDIO_TYPE I2S: the I2S driver's DMA IRQ (core 0) copies the ring out.
+ *
+ * AUDIO_TYPE HDMI: the HSTX IRQ (core 1) takes a frame for each audio packet,
+ * 11025 a second (44.1 kHz, 4 samples interpolated to a packet, see
+ * drivers/hdmi/hstx_data_island_queue.c), so HDMI is the clock. That IRQ
+ * must never wait on PSRAM (a late line costs a resync of the picture): a
+ * timer on core 0 copies the frames about to play into a small SRAM ring.
  */
 
 #include <string.h>
 
+#if Q2_AUDIO_HDMI
+#include "hardware/sync.h"
+#include "hstx_data_island_queue.h"
+#include "pico/time.h"
+#else
 #include "audio.h"
+#endif
 #include "board_config.h"
 #include "client/client.h"
 #include "client/snd_loc.h"
@@ -24,10 +37,59 @@
 #define RING_FRAMES 4096 /* power of 2: 0.37 s at 11 kHz */
 #define DMA_FRAMES  256
 
-/* in PSRAM: only the I2S DMA IRQ (core 0) and the mixer read or write it */
+/* in PSRAM: only core 0 reads or writes it (the mixer, the output's IRQ) */
 static uint32_t ring[RING_FRAMES] __attribute__((aligned(4), section(".psram_bss.sound")));
 static volatile uint32_t play_frame;
-static bool i2s_started;
+static bool output_started;
+
+#if Q2_AUDIO_HDMI
+
+#define HDMI_RING  512 /* SRAM, power of 2 */
+#define HDMI_AHEAD 384 /* frames copied ahead of the play position: 35 ms */
+#define HDMI_COPY_US 5000
+#define HDMI_GAIN_SHIFT 1 /* +6 dB: the mix peaks near -12 dBFS, quiet on a TV */
+
+static uint32_t hdmi_ring[HDMI_RING];
+static volatile uint32_t copied_frame; /* the frames before it are in hdmi_ring */
+static repeating_timer_t copy_timer;
+
+/* core 1, HSTX IRQ: the next frame; silence when the copy is behind */
+static uint32_t __not_in_flash_func(hdmi_source)(void) {
+    uint32_t f = play_frame;
+    play_frame = f + 1;
+    return (int32_t)(copied_frame - f) > 0 ? hdmi_ring[f & (HDMI_RING - 1)] : 0;
+}
+
+static inline int16_t hdmi_gain(int v) {
+    v <<= HDMI_GAIN_SHIFT;
+    return (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+}
+
+/* core 0, timer IRQ: the frames up to HDMI_AHEAD past the play position.
+ * Their slots held frames played at least HDMI_RING - HDMI_AHEAD ago. */
+static bool hdmi_copy(repeating_timer_t *t) {
+    (void)t;
+    uint32_t p = play_frame, c = copied_frame;
+    if ((int32_t)(c - p) < 0) c = p; /* stalled (flash writes): start again here */
+    for (uint32_t end = p + HDMI_AHEAD; (int32_t)(end - c) > 0; c++) {
+        uint32_t lr = ring[c & (RING_FRAMES - 1)];
+        uint16_t l = (uint16_t)hdmi_gain((int16_t)lr), r = (uint16_t)hdmi_gain((int16_t)(lr >> 16));
+        hdmi_ring[c & (HDMI_RING - 1)] = l | (uint32_t)r << 16;
+    }
+    __dmb();
+    copied_frame = c;
+    return true;
+}
+
+static void start_output(void) {
+    copied_frame = play_frame;
+    add_repeating_timer_us(-HDMI_COPY_US, hdmi_copy, NULL, &copy_timer);
+    hstx_di_queue_set_audio_source(hdmi_source);
+}
+
+#define OUTPUT_NAME "HDMI"
+
+#else /* I2S */
 
 static void __not_in_flash_func(i2s_fill)(int idx, uint32_t *buf, uint32_t frames) {
     (void)idx;
@@ -36,7 +98,7 @@ static void __not_in_flash_func(i2s_fill)(int idx, uint32_t *buf, uint32_t frame
     play_frame = f + frames;
 }
 
-static void start_i2s(void) {
+static void start_output(void) {
     static i2s_config_t cfg;
     cfg.sample_freq = Q2_SAMPLE_RATE;
     cfg.channel_count = 2;
@@ -50,6 +112,10 @@ static void start_i2s(void) {
     i2s_start();
 }
 
+#define OUTPUT_NAME "I2S"
+
+#endif
+
 qboolean SNDDMA_Init(void) {
     memset(ring, 0, sizeof(ring));
     dma.samplebits = 16;
@@ -59,11 +125,11 @@ qboolean SNDDMA_Init(void) {
     dma.samplepos = 0;
     dma.submission_chunk = 1;
     dma.buffer = (byte *)ring;
-    if (!i2s_started) {
-        start_i2s();
-        i2s_started = true;
+    if (!output_started) {
+        start_output();
+        output_started = true;
     }
-    Com_Printf("SNDDMA_Init: %d Hz 16-bit stereo, I2S\n", Q2_SAMPLE_RATE);
+    Com_Printf("SNDDMA_Init: %d Hz 16-bit stereo, " OUTPUT_NAME "\n", Q2_SAMPLE_RATE);
     return true;
 }
 
@@ -73,7 +139,7 @@ int SNDDMA_GetDMAPos(void) {
 }
 
 void SNDDMA_Shutdown(void) {
-    /* the I2S output keeps running (snd_restart calls SNDDMA_Init again) */
+    /* the output keeps running (snd_restart calls SNDDMA_Init again) */
     memset(ring, 0, sizeof(ring));
 }
 

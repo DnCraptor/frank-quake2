@@ -439,12 +439,16 @@ static inline void __scratch_x("") video_output_handle_active_data(dma_channel_h
 // ============================================================================
 
 volatile uint32_t psxv_irq_us; /* time spent in this IRQ (diagnostic) */
+volatile uint32_t psxv_irq_max_us;
 static void __scratch_x("") dma_irq_handler_body(void);
 static void __scratch_x("") dma_irq_handler(void)
 {
     uint32_t t0 = timer_hw->timerawl;
     dma_irq_handler_body();
-    psxv_irq_us += timer_hw->timerawl - t0;
+    hstx_di_queue_post(); /* after the DMA is set up again */
+    uint32_t dt = timer_hw->timerawl - t0;
+    psxv_irq_us += dt;
+    if (dt > psxv_irq_max_us) psxv_irq_max_us = dt;
 }
 
 static void __scratch_x("") dma_irq_handler_body(void)
@@ -576,8 +580,8 @@ void psxv_init(void)
     // Set v_total for audio packet timing
     hstx_di_queue_set_v_total(MODE_V_TOTAL_LINES);
 
-    // Initialize HDMI audio packets (default 48kHz)
-    configure_audio_packets(48000);
+    // HDMI audio packets: 44.1 kHz, 4x the game's 11025 Hz
+    configure_audio_packets(44100);
 
     hstx_packet_t packet;
     hstx_data_island_t island;

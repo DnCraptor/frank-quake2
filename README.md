@@ -1,7 +1,8 @@
 # frank-quake2
 
 Quake II for the RP2350 (FRANK / Murmulator M2 boards): HDMI via HSTX,
-8 MB PSRAM, I2S audio, USB keyboard and mouse, game data on the SD card.
+8 MB PSRAM, sound over HDMI or from the I2S DAC, USB keyboard and mouse,
+game data on the SD card.
 
 The engine is the ESP32-S3 port of Quake II
 ([recrof/Quake2-ESP32S3](https://github.com/recrof/Quake2-ESP32S3), id's
@@ -13,14 +14,18 @@ from frank-castle. Work in progress.
 - both cores render (core 1 between its HDMI interrupts): the world spans,
   the model triangles and the surface cache are split between them, the
   edge sorting and the world are pipelined across them
+- sound: 11025 Hz 16-bit stereo, over HDMI (44.1 kHz audio packets, about
+  1.5% slower) or from the board's I2S DAC: one firmware for each
 - single player only (no network)
 - demo1 timedemo: ~33 fps (689 frames in ~20.5 s); 30-45 fps in real-time
   play
 
 ## Installing
 
-1. Hold BOOTSEL, plug the board in, and copy the release's
-   `m2p2_frank-quake2_A_BB.uf2` to the RP2350 drive (or
+1. Pick the release's firmware for your sound output:
+   `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
+   `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC). Hold BOOTSEL,
+   plug the board in, and copy it to the RP2350 drive (or
    `picotool load -f FILE.uf2`).
 2. Copy the retail game data (patched to 3.20) to the SD card (FAT32 or
    exFAT):
@@ -65,15 +70,17 @@ The PC image is for 16 MB of flash; for a smaller chip pass
 ## Building
 
 ```
-./build.sh            # M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash
+./build.sh            # M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash, I2S sound
+AUDIO=HDMI ./build.sh # sound over HDMI
 ./flash.sh            # picotool, board in BOOTSEL
 ./swd_flash.sh        # or over SWD with a Debugprobe
 ./flash.sh frank-quake2-diag   # bring-up firmware (HDMI, PSRAM, SD, I2S, USB)
-./release.sh [A.BB] [--publish]  # release/m2p2_frank-quake2_A_BB.uf2 (+ GitHub release)
+./release.sh [A.BB] [--publish]  # release/m2p2_frank-quake2_{hdmi,i2s}_A_BB.uf2 (+ GitHub release)
 ```
 
 Options (cmake `-D...`):
 
+- `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output.
 - `FLASH_SPEED=168 FLASH_RXDELAY=6`: flash at 168 MHz instead of 126, about
   2.5% faster (the models and skins are read from flash). Above the flash
   chip's rating; it ran a 15-minute demo loop without a fault on the dev

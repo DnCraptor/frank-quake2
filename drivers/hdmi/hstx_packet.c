@@ -6,7 +6,9 @@
 // TERC4 Symbol Table (4-bit to 10-bit encoding)
 // ============================================================================
 
-static const uint16_t ter_c4[16] = {
+/* in SRAM (.data): the audio packets are made in the HSTX IRQ too
+ * (hstx_data_island_queue.c) */
+uint16_t hstx_ter_c4[16] = {
     0b1010011100, // 0
     0b1001100011, // 1
     0b1011100100, // 2
@@ -25,13 +27,16 @@ static const uint16_t ter_c4[16] = {
     0b1011000011, // 15
 };
 
+#define ter_c4 hstx_ter_c4
+#define bch_table hstx_bch_table
+
 #define GUARD_BAND_SYMBOL 0x133u // 0b0100110011
 
 // ============================================================================
 // BCH Encoding
 // ============================================================================
 
-static const uint8_t bch_table[256] = {
+uint8_t hstx_bch_table[256] = {
     0x00, 0xd9, 0xb5, 0x6c, 0x6d, 0xb4, 0xd8, 0x01, 0xda, 0x03, 0x6f, 0xb6, 0xb7, 0x6e, 0x02, 0xdb, 0xb3, 0x6a, 0x06,
     0xdf, 0xde, 0x07, 0x6b, 0xb2, 0x69, 0xb0, 0xdc, 0x05, 0x04, 0xdd, 0xb1, 0x68, 0x61, 0xb8, 0xd4, 0x0d, 0x0c, 0xd5,
     0xb9, 0x60, 0xbb, 0x62, 0x0e, 0xd7, 0xd6, 0x0f, 0x63, 0xba, 0xd2, 0x0b, 0x67, 0xbe, 0xbf, 0x66, 0x0a, 0xd3, 0x08,
