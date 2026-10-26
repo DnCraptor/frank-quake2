@@ -47,9 +47,6 @@ set_property(CACHE AUDIO_TYPE PROPERTY STRINGS I2S HDMI)
 if(NOT AUDIO_TYPE STREQUAL "I2S" AND NOT AUDIO_TYPE STREQUAL "HDMI")
     message(FATAL_ERROR "AUDIO_TYPE must be I2S or HDMI")
 endif()
-if(AUDIO_TYPE STREQUAL "HDMI" AND BOARD_VARIANT STREQUAL "Z0")
-    message(FATAL_ERROR "Z0: I2S sound only (its PIO HDMI sends no audio)")
-endif()
 if(AUDIO_TYPE STREQUAL "HDMI" AND NOT Q2_SAMPLE_RATE STREQUAL "11025")
     message(FATAL_ERROR "HDMI audio needs Q2_SAMPLE_RATE 11025 (a quarter of 44.1 kHz)")
 endif()
@@ -131,7 +128,7 @@ add_subdirectory(drivers/usbhid)
 add_subdirectory(drivers/audio)
 
 if(Q2_VIDEO_PIO)
-    set(VIDEO_SOURCES drivers/hdmi_pio/hdmi_pio.c)
+    set(VIDEO_SOURCES drivers/hdmi_pio/hdmi_pio.c drivers/hdmi/hstx_packet.c)
 else()
     set(VIDEO_SOURCES
         drivers/hdmi/psx_video.c
@@ -139,6 +136,8 @@ else()
         drivers/hdmi/hstx_data_island_queue.c
     )
 endif()
+# the PIO HDMI's IRQ code must stay in SRAM: no loops turned into newlib calls
+set_source_files_properties(drivers/hdmi_pio/hdmi_pio.c PROPERTIES COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns")
 add_library(drivers STATIC
     drivers/psram_init.c
     drivers/psram_allocator.c

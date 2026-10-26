@@ -17,7 +17,7 @@
 #
 # Output: release/m2p2_frank-quake2_hdmi_A_BB.uf2 (M2, sound over HDMI),
 #         release/m2p2_frank-quake2_i2s_A_BB.uf2 (M2, sound from the I2S DAC),
-#         release/z0p2_frank-quake2_i2s_A_BB.uf2 (Z0: Waveshare RP2350-PiZero)
+#         release/z0p2_frank-quake2_{hdmi,i2s}_A_BB.uf2 (Z0: Waveshare RP2350-PiZero)
 # Clocks: 504 MHz CPU / 168 MHz PSRAM (Z0: 133) / 126 MHz flash (as tuned on the M2;
 # the flash at 168 MHz stays a build option, see README).
 # USB is the keyboard/mouse host; the debug console is UART0.
@@ -44,6 +44,7 @@ RELEASE_FLASH_SPEED="${RELEASE_FLASH_SPEED:-126}"
 BUILD_MATRIX=(
     "M2:HDMI:m2p2_"
     "M2:I2S:m2p2_"
+    "Z0:HDMI:z0p2_"
     "Z0:I2S:z0p2_"
 )
 
@@ -171,9 +172,9 @@ Quake II for the FRANK / Murmulator M2 and the Waveshare RP2350-PiZero (Z0) (RP2
 
 1. Pick the firmware for your board and sound output. M2: \`${SUCCEEDED[0]}\` plays the
    sound over HDMI (the TV's speakers), \`${SUCCEEDED[1]}\` from the board's I2S DAC.
-   Z0 (Waveshare RP2350-PiZero): \`${SUCCEEDED[2]}\`, the sound from an I2S DAC module
-   (PCM5102A: DIN GP10, BCK GP11, LRCK GP12). Hold BOOTSEL, plug the board in, and copy
-   it to the RP2350 drive (or \`picotool load -f FILE.uf2\`).
+   Z0 (Waveshare RP2350-PiZero): \`${SUCCEEDED[2]}\` over HDMI, \`${SUCCEEDED[3]}\` from an
+   I2S DAC module (PCM5102A: DIN GP10, BCK GP11, LRCK GP12). Hold BOOTSEL, plug the board
+   in, and copy it to the RP2350 drive (or \`picotool load -f FILE.uf2\`).
 2. Copy the retail Quake II data, patched to 3.20, to the SD card (FAT32 or exFAT):
    \`/quake2/baseq2/pak0.pak\`, \`pak1.pak\`, \`pak2.pak\`.
 3. Start the board. The first start builds the models and skins into flash from the

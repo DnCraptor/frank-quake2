@@ -1,9 +1,8 @@
 # frank-quake2
 
-Quake II for the RP2350: FRANK / Murmulator M2 boards (HDMI via HSTX, sound
-over HDMI or from the I2S DAC) and the Waveshare RP2350-PiZero, "Z0" (HDMI
-via PIO, sound from an I2S DAC module); 8 MB PSRAM, USB keyboard and mouse,
-game data on the SD card.
+Quake II for the RP2350: FRANK / Murmulator M2 boards (HDMI via HSTX) and
+the Waveshare RP2350-PiZero, "Z0" (HDMI via PIO); sound over HDMI or from an
+I2S DAC, 8 MB PSRAM, USB keyboard and mouse, game data on the SD card.
 
 The engine is the ESP32-S3 port of Quake II
 ([recrof/Quake2-ESP32S3](https://github.com/recrof/Quake2-ESP32S3), id's
@@ -26,8 +25,8 @@ from frank-castle. Work in progress.
 1. Pick the release's firmware for your board and sound output:
    - M2: `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
      `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC);
-   - Z0 (Waveshare RP2350-PiZero): `z0p2_frank-quake2_i2s_A_BB.uf2`, see
-     below.
+   - Z0 (Waveshare RP2350-PiZero): `z0p2_frank-quake2_hdmi_A_BB.uf2` or
+     `z0p2_frank-quake2_i2s_A_BB.uf2` (an I2S DAC module), see below.
 
    Hold BOOTSEL, plug the board in, and copy it to the RP2350 drive (or
    `picotool load -f FILE.uf2`).
@@ -49,8 +48,10 @@ is included in this repository or in the releases.
 
 ### Z0 (Waveshare RP2350-PiZero)
 
-- Picture on the mini-HDMI port (PIO on GPIO 32-39); no HDMI sound.
-- Sound from an I2S DAC module (PCM5102A): DIN GP10, BCK GP11, LRCK GP12.
+- Picture and sound on the mini-HDMI port (PIO on GPIO 32-39: the pixels go
+  through a TMDS table by DMA, the audio and info packets are encoded into
+  each line's blanking), or the sound from an I2S DAC module (PCM5102A):
+  DIN GP10, BCK GP11, LRCK GP12.
 - SD card slot (SPI1: 30/31/40/43), PSRAM on board (CS GPIO47).
 - Keyboard and mouse on the native USB port (USB host, through an OTG
   adapter or hub). The debug UART (GPIO0/1) is not on its header.
@@ -96,7 +97,7 @@ AUDIO=HDMI ./build.sh # sound over HDMI
 Options (cmake `-D...`):
 
 - `BOARD_VARIANT=M2` (the default) or `Z0`.
-- `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output (Z0: I2S only).
+- `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output.
 - `FLASH_SPEED=168 FLASH_RXDELAY=6`: flash at 168 MHz instead of 126, about
   2.5% faster (the models and skins are read from flash). Above the flash
   chip's rating; it ran a 15-minute demo loop without a fault on the dev

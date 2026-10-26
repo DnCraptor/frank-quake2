@@ -51,7 +51,11 @@ static qfile_t files[MAX_FILES] __attribute__((section(".psram_bss")));
  * staging buffer too, until a texture read from the card during a scan
  * (a full span buffer draws the surfaces, which can load a texture)
  * overwrote the scan ring: a crash on core 1 in base1. */
+#if Q2_VIDEO_PIO /* SCRATCH_Y holds the PIO HDMI's tables: main SRAM */
+uint8_t q2_scratch4k[4096] __attribute__((aligned(4)));
+#else
 uint8_t q2_scratch4k[4096] __attribute__((aligned(4), section(".scratch_y.rings")));
+#endif
 
 static qfile_t *file_of(int fd) {
     int i = fd - FIRST_FD;

@@ -8,8 +8,7 @@
  * (Z0: Waveshare RP2350-PiZero, GPIO 32..39). From the frank-msx / pico-nes
  * driver: DMA turns each 8-bit pixel into its TMDS words through a 4 KB
  * table, a PIO shifts them out. 640x480@60, a 320x240 8-bit source doubled
- * both ways. Indices 251..254 are the sync words: pixels of those colours
- * are shown in the nearest other colour.
+ * both ways, as HDMI: a data island in every line (audio, or a null packet).
  *
  * The same entry points as the HSTX driver (psx_video.h) where they apply.
  */
@@ -25,7 +24,8 @@ typedef const uint8_t *(*hdmi_pio_row_cb_t)(uint32_t row);
 typedef void (*psxv_vsync_cb_t)(void);
 
 /* after the final sys clock is set (252 MHz multiple); claims DMA channels
- * 0..3, two state machines of pio0, DMA_IRQ_0 (taken by psxv_start) */
+ * 0..3, two state machines of pio0, DMA_IRQ_0 (taken by psxv_start), all of
+ * SCRATCH_X and SCRATCH_Y */
 void psxv_init(void);
 void hdmi_pio_set_row_callback(hdmi_pio_row_cb_t cb);
 void psxv_set_vsync_callback(psxv_vsync_cb_t cb);
@@ -38,6 +38,12 @@ void psxv_start(void);
 void hdmi_pio_load_palette(const uint8_t *rgb, int stride);
 void hdmi_pio_show_palette(void);
 int hdmi_pio_palette_pending(void);
+
+/* HDMI audio: the source returns the next stereo frame (left | right << 16)
+ * at 11025 Hz; each audio packet carries 4 samples interpolated up to it
+ * (44.1 kHz). Called from the IRQ: it and what it reads must be in SRAM. */
+typedef uint32_t (*hdmi_pio_audio_source_t)(void);
+void hdmi_pio_set_audio_source(hdmi_pio_audio_source_t source);
 
 extern volatile uint32_t psxv_frame_count;
 extern volatile uint32_t psxv_irq_us, psxv_irq_max_us, psxv_resyncs;

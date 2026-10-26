@@ -21,7 +21,12 @@
 
 #if Q2_AUDIO_HDMI
 #include "hardware/sync.h"
+#if Q2_VIDEO_PIO
+#include "hdmi_pio.h"
+#define hstx_di_queue_set_audio_source hdmi_pio_set_audio_source
+#else
 #include "hstx_data_island_queue.h"
+#endif
 #include "pico/time.h"
 #else
 #include "audio.h"

@@ -282,6 +282,7 @@ SECTIONS
 
     .scratch_y : {
         __scratch_y_start__ = .;
+        *(.scratch_y.hdmi_tab) /* PIO HDMI: 4 KB aligned, the bank's start */
         *(.scratch_y.*)
         . = ALIGN(4);
         __scratch_y_end__ = .;
