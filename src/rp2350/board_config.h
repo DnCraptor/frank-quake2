@@ -12,15 +12,24 @@
 #include "hardware/vreg.h"
 
 /*
- * M2 GPIO layout on RP2350B (the only target for now):
+ * M2 GPIO layout on RP2350B:
  *   HDMI:  GPIO12-19 via HSTX (12/13 CLK, 14/15 D0, 16/17 D1, 18/19 D2)
  *   SD:    SPI0 SCK=6, MOSI=7, MISO=4, CS=5
  *   I2S:   DATA=9, BCLK=10, LRCK=11
  *   PSRAM: CS1=47 (RP2350B), 8 MB
  *   UART:  TX=0, RX=1 (debug console; native USB is the keyboard host)
+ *
+ * Z0 (Waveshare RP2350-PiZero, RP2350B):
+ *   HDMI:  GPIO32-39 via PIO (32..37 the data pairs, 38/39 CLK)
+ *   SD:    SPI1 SCK=30, MOSI=31, MISO=40, CS=43
+ *   I2S:   a PCM5102A module, DATA=10, BCLK=11, LRCK=12
+ *   PSRAM: CS1=47, 8 MB
+ *   UART:  TX=0, RX=1; native USB is the keyboard host
+ *
+ * The pins the drivers use come from CMakeLists.txt.
  */
 
-#if !defined(BOARD_M2)
+#if !defined(BOARD_M2) && !defined(BOARD_Z0)
 #define BOARD_M2
 #endif
 
@@ -48,12 +57,23 @@ static inline uint get_psram_pin(void) {
     return (package_sel & 1) ? PSRAM_PIN_RP2350A : PSRAM_PIN_RP2350B;
 }
 
+#ifdef BOARD_Z0
+#define HDMI_BASE_PIN 32
+#ifndef SDCARD_PIN_SPI0_SCK
+#define SDCARD_PIN_SPI0_SCK  30
+#define SDCARD_PIN_SPI0_MOSI 31
+#define SDCARD_PIN_SPI0_MISO 40
+#define SDCARD_PIN_SPI0_CS   43
+#endif
+#else
 #define HDMI_BASE_PIN 12
-
+#ifndef SDCARD_PIN_SPI0_SCK
 #define SDCARD_PIN_SPI0_SCK  6
 #define SDCARD_PIN_SPI0_MOSI 7
 #define SDCARD_PIN_SPI0_MISO 4
 #define SDCARD_PIN_SPI0_CS   5
+#endif
+#endif
 
 #ifndef PICO_AUDIO_I2S_DATA_PIN
 #define PICO_AUDIO_I2S_DATA_PIN 9

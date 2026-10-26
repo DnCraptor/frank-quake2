@@ -9,14 +9,32 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-set(PICO_BOARD frank_m2_rp2350b CACHE STRING "Pico board type")
+# M2: Murmulator 2 (HSTX HDMI on GPIO 12-19, I2S DAC on 9-11, SD on SPI0).
+# Z0: Waveshare RP2350-PiZero (PIO HDMI on GPIO 32-39, an I2S module on
+#     10-12, SD on SPI1); I2S sound only.
+set(BOARD_VARIANT "M2" CACHE STRING "Board: M2 or Z0")
+set_property(CACHE BOARD_VARIANT PROPERTY STRINGS M2 Z0)
+if(BOARD_VARIANT STREQUAL "M2")
+    set(PICO_BOARD frank_m2_rp2350b)
+elseif(BOARD_VARIANT STREQUAL "Z0")
+    set(PICO_BOARD frank_z0_rp2350b)
+else()
+    message(FATAL_ERROR "BOARD_VARIANT must be M2 or Z0")
+endif()
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
-set(BOARD_VARIANT "M2" CACHE STRING "Board variant (only M2 for now)")
 set(CPU_SPEED "504" CACHE STRING "CPU clock in MHz: 252, 378, 504")
 # Tuned on the frank-castle dev board with the diag firmware ('r' sweeps the
 # PSRAM read delay, 'f' the flash one); use 133 MHz PSRAM if a board misbehaves.
-set(PSRAM_SPEED "168" CACHE STRING "PSRAM max frequency in MHz: 84, 100, 133, 168")
-set(PSRAM_RXDELAY "6" CACHE STRING "PSRAM read sampling delay override (empty: derived from the clock)")
+# Z0: untuned yet, 133 MHz (504 / 4 = 126) with the derived read delay.
+if(BOARD_VARIANT STREQUAL "Z0")
+    set(PSRAM_SPEED_DEFAULT "133")
+    set(PSRAM_RXDELAY_DEFAULT "")
+else()
+    set(PSRAM_SPEED_DEFAULT "168")
+    set(PSRAM_RXDELAY_DEFAULT "6")
+endif()
+set(PSRAM_SPEED "${PSRAM_SPEED_DEFAULT}" CACHE STRING "PSRAM max frequency in MHz: 84, 100, 133, 168")
+set(PSRAM_RXDELAY "${PSRAM_RXDELAY_DEFAULT}" CACHE STRING "PSRAM read sampling delay override (empty: derived from the clock)")
 set(FLASH_SPEED "126" CACHE STRING "Flash chip max frequency in MHz")
 set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: derived from the clock)")
 # The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
@@ -28,6 +46,9 @@ set(AUDIO_TYPE "I2S" CACHE STRING "Audio output: I2S or HDMI")
 set_property(CACHE AUDIO_TYPE PROPERTY STRINGS I2S HDMI)
 if(NOT AUDIO_TYPE STREQUAL "I2S" AND NOT AUDIO_TYPE STREQUAL "HDMI")
     message(FATAL_ERROR "AUDIO_TYPE must be I2S or HDMI")
+endif()
+if(AUDIO_TYPE STREQUAL "HDMI" AND BOARD_VARIANT STREQUAL "Z0")
+    message(FATAL_ERROR "Z0: I2S sound only (its PIO HDMI sends no audio)")
 endif()
 if(AUDIO_TYPE STREQUAL "HDMI" AND NOT Q2_SAMPLE_RATE STREQUAL "11025")
     message(FATAL_ERROR "HDMI audio needs Q2_SAMPLE_RATE 11025 (a quarter of 44.1 kHz)")
@@ -53,12 +74,34 @@ endif()
 # clk_peri (UART, SD card SPI): 0 keeps the 48 MHz USB PLL (SPI 24 MHz at most)
 set(PERI_SPEED "168" CACHE STRING "clk_peri in MHz, from clk_sys (0: 48 MHz from the USB PLL)")
 set(SD_SPEED "42" CACHE STRING "SD card SPI clock in MHz (clk_peri / an even divider)")
-set(SD_PIN_SCK 6)
-set(SD_PIN_MOSI 7)
-set(SD_PIN_MISO 4)
-set(SD_PIN_CS 5)
-set(I2S_DATA_PIN 9)
-set(I2S_CLK_PIN 10)
+if(BOARD_VARIANT STREQUAL "Z0")
+    set(SD_SPI_BUS spi1)
+    set(SD_PIN_SCK 30)
+    set(SD_PIN_MOSI 31)
+    set(SD_PIN_MISO 40)
+    set(SD_PIN_CS 43)
+    set(I2S_DATA_PIN 10)
+    set(I2S_CLK_PIN 11) # and LRCK 12
+    set(I2S_PIO pio1)   # pio0 is the video's, its GPIO window starts at 16
+    set(Q2_VIDEO_PIO 1)
+else()
+    set(SD_SPI_BUS spi0)
+    set(SD_PIN_SCK 6)
+    set(SD_PIN_MOSI 7)
+    set(SD_PIN_MISO 4)
+    set(SD_PIN_CS 5)
+    set(I2S_DATA_PIN 9)
+    set(I2S_CLK_PIN 10)
+    set(I2S_PIO pio0)
+    set(Q2_VIDEO_PIO 0)
+    # a test of the Z0's PIO HDMI driver on an M2 (its HDMI pins, the
+    # frank-msx M2 layout: clock pair first, RGB, the pairs inverted)
+    option(M2_VIDEO_PIO "M2: PIO HDMI instead of HSTX (to test the Z0 video)" OFF)
+    if(M2_VIDEO_PIO)
+        set(Q2_VIDEO_PIO 1)
+        set(HDMI_PIO_DEFINES HDMI_PIO_BASE_PIN=12 HDMI_PIO_Z0_LAYOUT=0)
+    endif()
+endif()
 
 include(pico_sdk_import.cmake)
 
@@ -87,21 +130,29 @@ add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/usbhid)
 add_subdirectory(drivers/audio)
 
+if(Q2_VIDEO_PIO)
+    set(VIDEO_SOURCES drivers/hdmi_pio/hdmi_pio.c)
+else()
+    set(VIDEO_SOURCES
+        drivers/hdmi/psx_video.c
+        drivers/hdmi/hstx_packet.c
+        drivers/hdmi/hstx_data_island_queue.c
+    )
+endif()
 add_library(drivers STATIC
     drivers/psram_init.c
     drivers/psram_allocator.c
     drivers/psram_heap.c
     drivers/dlmalloc.c
-    drivers/hdmi/psx_video.c
-    drivers/hdmi/hstx_packet.c
-    drivers/hdmi/hstx_data_island_queue.c
+    ${VIDEO_SOURCES}
 )
-target_include_directories(drivers PUBLIC drivers drivers/hdmi)
-target_link_libraries(drivers PUBLIC pico_stdlib hardware_dma hardware_irq hardware_clocks hardware_gpio)
+target_include_directories(drivers PUBLIC drivers drivers/hdmi drivers/hdmi_pio)
+target_link_libraries(drivers PUBLIC pico_stdlib hardware_dma hardware_irq hardware_clocks hardware_gpio hardware_pio)
 set_source_files_properties(drivers/dlmalloc.c PROPERTIES COMPILE_DEFINITIONS
     "ONLY_MSPACES=1;HAVE_MMAP=0;HAVE_MORECORE=0;NO_MALLOC_STATS=1;USE_LOCKS=0;ABORT_ON_ASSERT_FAILURE=0;MALLOC_FAILURE_ACTION=;LACKS_SYS_MMAN_H=1;LACKS_UNISTD_H=1;LACKS_SYS_PARAM_H=1"
 )
 target_compile_definitions(drivers PUBLIC
+    ${HDMI_PIO_DEFINES}
     PSRAM_MAX_FREQ_MHZ=${PSRAM_SPEED}
     $<$<BOOL:${PSRAM_RXDELAY}>:PSRAM_RXDELAY=${PSRAM_RXDELAY}>
     PSXV_PIN_BASE=12
@@ -123,6 +174,8 @@ set(Q2_DEFINES
     Q2_ASSETS_OFFSET=${Q2_ASSETS_OFFSET}
     Q2_SAMPLE_RATE=${Q2_SAMPLE_RATE}
     Q2_AUDIO_${AUDIO_TYPE}=1
+    Q2_VIDEO_PIO=${Q2_VIDEO_PIO}
+    Q2_I2S_PIO=${I2S_PIO}
     Q2_FB_COUNT=${Q2_FB_COUNT}
 )
 
@@ -143,6 +196,7 @@ target_link_libraries(q2_platform PUBLIC
 # ---------------------------------------------------------------------
 # Phase 0: hardware bring-up firmware
 # ---------------------------------------------------------------------
+if(NOT Q2_VIDEO_PIO) # the diag firmware is HSTX only
 add_executable(frank-quake2-diag src/diag/diag_main.c)
 target_link_libraries(frank-quake2-diag q2_platform)
 target_link_options(frank-quake2-diag PRIVATE -Wl,--wrap=panic
@@ -151,6 +205,7 @@ pico_set_linker_script(frank-quake2-diag ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quak
 pico_enable_stdio_usb(frank-quake2-diag 0)
 pico_enable_stdio_uart(frank-quake2-diag 1)
 pico_add_extra_outputs(frank-quake2-diag)
+endif()
 
 # ---------------------------------------------------------------------
 # The engine: Quake II from the ESP32-S3 port (quake2generic lineage),

@@ -24,7 +24,11 @@
 #include "hardware/structs/xip_ctrl.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
+#if Q2_VIDEO_PIO
+#include "hdmi_pio.h"
+#else
 #include "psx_video.h"
+#endif
 #include "q2_platform.h"
 #include "quake2.h"
 #include "quakegeneric.h"

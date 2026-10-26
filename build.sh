@@ -5,9 +5,9 @@
 # Copyright (c) 2026 Mikhail Matveev <xtreme@rh1.tech>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Usage: ./build.sh [M2] [CPU_MHz] [PSRAM_MHz] [FLASH_MHz]
-# Defaults: M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash (read delays tuned
-# per board with the diag firmware; see CMakeLists.txt).
+# Usage: ./build.sh [M2|Z0] [CPU_MHz] [PSRAM_MHz] [FLASH_MHz]
+# Defaults: M2, 504 MHz CPU, 168 MHz PSRAM (Z0: 133), 126 MHz flash (read
+# delays tuned per board with the diag firmware; see CMakeLists.txt).
 # USB is always the keyboard/mouse host; the debug console is UART0 on GPIO0/1.
 # AUDIO=HDMI ./build.sh: sound over HDMI instead of the I2S DAC (default I2S).
 
@@ -15,7 +15,7 @@ set -e
 
 BOARD=${1:-M2}
 CPU=${2:-504}
-PSRAM=${3:-168}
+if [ "$BOARD" = "Z0" ]; then PSRAM=${3:-133}; else PSRAM=${3:-168}; fi
 FLASH=${4:-126}
 AUDIO=${AUDIO:-I2S}
 

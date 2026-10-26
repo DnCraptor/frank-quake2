@@ -104,7 +104,7 @@ static void start_output(void) {
     cfg.channel_count = 2;
     cfg.data_pin = PICO_AUDIO_I2S_DATA_PIN;
     cfg.clock_pin_base = PICO_AUDIO_I2S_CLOCK_PIN_BASE;
-    cfg.pio = pio0;
+    cfg.pio = Q2_I2S_PIO; /* pio0 on M2, pio1 on Z0 (pio0 is its video) */
     cfg.dma_trans_count = DMA_FRAMES;
     cfg.volume = 0;
     i2s_init(&cfg);

@@ -1,7 +1,8 @@
 # frank-quake2
 
-Quake II for the RP2350 (FRANK / Murmulator M2 boards): HDMI via HSTX,
-8 MB PSRAM, sound over HDMI or from the I2S DAC, USB keyboard and mouse,
+Quake II for the RP2350: FRANK / Murmulator M2 boards (HDMI via HSTX, sound
+over HDMI or from the I2S DAC) and the Waveshare RP2350-PiZero, "Z0" (HDMI
+via PIO, sound from an I2S DAC module); 8 MB PSRAM, USB keyboard and mouse,
 game data on the SD card.
 
 The engine is the ESP32-S3 port of Quake II
@@ -22,10 +23,13 @@ from frank-castle. Work in progress.
 
 ## Installing
 
-1. Pick the release's firmware for your sound output:
-   `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
-   `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC). Hold BOOTSEL,
-   plug the board in, and copy it to the RP2350 drive (or
+1. Pick the release's firmware for your board and sound output:
+   - M2: `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
+     `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC);
+   - Z0 (Waveshare RP2350-PiZero): `z0p2_frank-quake2_i2s_A_BB.uf2`, see
+     below.
+
+   Hold BOOTSEL, plug the board in, and copy it to the RP2350 drive (or
    `picotool load -f FILE.uf2`).
 2. Copy the retail game data (patched to 3.20) to the SD card (FAT32 or
    exFAT):
@@ -42,6 +46,16 @@ from frank-castle. Work in progress.
 Saves and `config.cfg` are written to `/quake2/baseq2/`. An optional
 `/quake2/args.txt` adds to the command line (e.g. `+map base1`). No game data
 is included in this repository or in the releases.
+
+### Z0 (Waveshare RP2350-PiZero)
+
+- Picture on the mini-HDMI port (PIO on GPIO 32-39); no HDMI sound.
+- Sound from an I2S DAC module (PCM5102A): DIN GP10, BCK GP11, LRCK GP12.
+- SD card slot (SPI1: 30/31/40/43), PSRAM on board (CS GPIO47).
+- Keyboard and mouse on the native USB port (USB host, through an OTG
+  adapter or hub). The debug UART (GPIO0/1) is not on its header.
+- PSRAM at 504 / 4 = 126 MHz (the M2 runs it at 168, tuned there): somewhat
+  slower until it is tuned on a Z0.
 
 ## Models and skins in flash
 
@@ -72,6 +86,7 @@ The PC image is for 16 MB of flash; for a smaller chip pass
 ```
 ./build.sh            # M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash, I2S sound
 AUDIO=HDMI ./build.sh # sound over HDMI
+./build.sh Z0         # Waveshare RP2350-PiZero
 ./flash.sh            # picotool, board in BOOTSEL
 ./swd_flash.sh        # or over SWD with a Debugprobe
 ./flash.sh frank-quake2-diag   # bring-up firmware (HDMI, PSRAM, SD, I2S, USB)
@@ -80,7 +95,8 @@ AUDIO=HDMI ./build.sh # sound over HDMI
 
 Options (cmake `-D...`):
 
-- `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output.
+- `BOARD_VARIANT=M2` (the default) or `Z0`.
+- `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output (Z0: I2S only).
 - `FLASH_SPEED=168 FLASH_RXDELAY=6`: flash at 168 MHz instead of 126, about
   2.5% faster (the models and skins are read from flash). Above the flash
   chip's rating; it ran a 15-minute demo loop without a fault on the dev

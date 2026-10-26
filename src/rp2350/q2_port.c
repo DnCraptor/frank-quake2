@@ -16,7 +16,11 @@
 #include "hardware/xip_cache.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
+#if Q2_VIDEO_PIO
+#include "hdmi_pio.h"
+#else
 #include "psx_video.h"
+#endif
 #include "q2_platform.h"
 #include "qcommon/q_perf.h"
 #include "quakegeneric.h"

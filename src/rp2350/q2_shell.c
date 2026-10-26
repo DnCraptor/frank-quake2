@@ -28,7 +28,11 @@
 #ifndef Q2_VERSION
 #define Q2_VERSION "?"
 #endif
-#define BOARD_VARIANT_NAME "M2" /* the only board for now */
+#ifdef BOARD_Z0
+#define BOARD_VARIANT_NAME "Z0"
+#else
+#define BOARD_VARIANT_NAME "M2"
+#endif
 
 #define W Q2_W
 #define H Q2_H
@@ -367,8 +371,9 @@ static void log_putc(char ch, uint8_t c) {
         log_newline();
         return;
     }
-    if (ch == '\r') {
+    if (ch == '\r') { /* the line is written again: what was there goes */
         log_col = 0;
+        fill(TX0, log_y0 + log_row * 9, TX1, log_y0 + log_row * 9 + 9, C_PANEL);
         return;
     }
     if (log_col >= LOG_COLS) log_newline();

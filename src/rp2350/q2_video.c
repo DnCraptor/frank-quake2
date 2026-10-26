@@ -22,24 +22,31 @@
 
 #include "hardware/sync.h"
 #include "pico/stdlib.h"
+#if Q2_VIDEO_PIO
+#include "hdmi_pio.h"
+#else
 #include "psx_video.h"
+#endif
 #include "q2_platform.h"
 
 #ifndef Q2_FB_COUNT
 #define Q2_FB_COUNT 2
 #endif
 
-#define NSLOT 4 /* line buffers: the DMA reads a slot up to two lines after the callback */
-
 static uint8_t fb[Q2_FB_COUNT][Q2_W * Q2_H] __attribute__((aligned(4)));
+#if !Q2_VIDEO_PIO
+#define NSLOT 4 /* line buffers: the DMA reads a slot up to two lines after the callback */
 static uint16_t pal[2][256] __attribute__((aligned(4)));
 static uint32_t line_buf[NSLOT][Q2_W / 2];
+#endif
 
 static volatile int fb_front;        /* shown */
 static volatile int fb_pending = -1; /* shown from the next vsync */
 static int fb_back = 1;              /* being drawn */
+#if !Q2_VIDEO_PIO
 static volatile int pal_front;
 static volatile int pal_pending = -1;
+#endif
 static bool pal_held;                /* loaded, shown with the next frame */
 
 volatile uint32_t q2_vsync_count;
@@ -49,13 +56,26 @@ static void __not_in_flash_func(on_vsync)(void) {
         fb_front = fb_pending;
         fb_pending = -1;
     }
+#if !Q2_VIDEO_PIO
     if (pal_pending >= 0) {
         pal_front = pal_pending;
         pal_pending = -1;
     }
+#endif
     q2_vsync_count++;
 }
 
+#if Q2_VIDEO_PIO
+/* PIO HDMI: the driver takes the 8-bit rows as they are */
+static const uint8_t *__not_in_flash_func(on_row)(uint32_t row) {
+    return fb[fb_front] + row * Q2_W;
+}
+
+void q2_video_init(void) {
+    hdmi_pio_set_row_callback(on_row);
+    psxv_set_vsync_callback(on_vsync);
+}
+#else
 static void __not_in_flash_func(on_line)(uint32_t out_line, psxv_line_t *line) {
     uint32_t row = out_line >> 1;
     uint32_t *dst = line_buf[row & (NSLOT - 1)];
@@ -76,6 +96,7 @@ void q2_video_init(void) {
     psxv_set_line_callback(on_line);
     psxv_set_vsync_callback(on_vsync);
 }
+#endif
 
 uint8_t *q2_video_backbuffer(void) {
     return fb[fb_back];
@@ -99,7 +120,11 @@ uint8_t *q2_video_present(void) {
         q2_shell_release(); /* the engine's first frame */
         if (pal_held) {
             pal_held = false;
+#if Q2_VIDEO_PIO
+            hdmi_pio_show_palette();
+#else
             pal_pending = pal_front ^ 1;
+#endif
         }
     }
     if (!q2_vsync) {
@@ -143,6 +168,12 @@ void q2_video_wait_back(void) {
  * on screen the engine's palette is only loaded (into the other slot), and
  * shown with its first frame. */
 static void load_palette(const uint8_t *rgb, int stride, bool show) {
+#if Q2_VIDEO_PIO
+    hdmi_pio_load_palette(rgb, stride);
+    if (show)
+        hdmi_pio_show_palette();
+    pal_held = !show;
+#else
     while (pal_pending >= 0) tight_loop_contents();
     int n = pal_front ^ 1;
     for (int i = 0; i < 256; i++, rgb += stride)
@@ -151,6 +182,7 @@ static void load_palette(const uint8_t *rgb, int stride, bool show) {
     if (show)
         pal_pending = n;
     pal_held = !show;
+#endif
 }
 
 void q2_video_set_palette(const uint8_t *rgb, int stride) {

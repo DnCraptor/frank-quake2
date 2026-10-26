@@ -15,6 +15,10 @@
 
 /* Q2_SCRATCH: a small hot function in SCRATCH_X (the 4 KB SRAM bank of the
  * HDMI interrupt, which leaves ~2.5 KB free), when the main SRAM is full */
+#if Q2_VIDEO_PIO /* SCRATCH_X is the PIO HDMI's TMDS table: main SRAM */
+#define Q2_SCRATCH __attribute__((section(".time_critical.q2s"), noinline))
+#else
 #define Q2_SCRATCH __attribute__((section(".scratch_x.q2"), noinline))
+#endif
 
 #endif
