@@ -203,6 +203,7 @@ add_executable(frank-quake2
     src/rp2350/main.c
     src/rp2350/q2_port.c
     src/rp2350/q2_video.c
+    src/rp2350/q2_shell.c
     src/rp2350/q2_sound.c
     src/rp2350/q2_input.c
     src/rp2350/q2_fs.c
@@ -213,7 +214,7 @@ add_executable(frank-quake2
 )
 # IRQ code must stay in SRAM: stop GCC from turning copy loops into calls
 # to newlib's memcpy/memset.
-set_source_files_properties(src/rp2350/q2_video.c src/rp2350/q2_sound.c
+set_source_files_properties(src/rp2350/q2_video.c src/rp2350/q2_shell.c src/rp2350/q2_sound.c
     PROPERTIES COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns")
 target_include_directories(frank-quake2 PRIVATE ${Q2_DIR})
 target_compile_definitions(frank-quake2 PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1)

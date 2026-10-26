@@ -32,10 +32,18 @@ void q2_video_init(void);
 uint8_t *q2_video_backbuffer(void);
 uint8_t *q2_video_present(void);
 void q2_video_set_palette(const uint8_t *rgb, int stride);
+void q2_video_set_palette_now(const uint8_t *rgb, int stride);
 void q2_video_wait_vsync(void);
 void q2_video_wait_back(void);
 extern volatile uint32_t q2_vsync_count;
-void q2_con_show(void);
+uint8_t *q2_video_front(void);
+
+/* q2_shell.c: the welcome and error screens, the boot log */
+void q2_shell_welcome(void);
+void q2_shell_error(const char *title, const char *hint);
+void q2_shell_end(unsigned min_ms);
+void q2_shell_release(void);
+extern bool q2_shell_active;
 void q2_con_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void q2_con_highlight(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void q2_con_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -45,6 +53,7 @@ void q2_input_poll(void);
 
 /* q2_port.c */
 void q2_core1_main(void);
+extern void (*volatile q2_core1_idle)(void);
 void __attribute__((noreturn)) q2_halt(const char *msg);
 
 #endif /* Q2_PLATFORM_H */

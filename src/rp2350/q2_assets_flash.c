@@ -188,7 +188,7 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     }
     assets_size = flash - Q2_ASSETS_OFFSET;
     if (flash < (16u << 20))
-        q2_con_highlight("%lu MB flash: the biggest models will load to PSRAM\n", (unsigned long)(flash >> 20));
+        q2_con_highlight("%lu MB flash: the biggest models load to PSRAM.\n", (unsigned long)(flash >> 20));
     FILE *flag = fopen(rebuild_flag, "rb");
     bool forced = flag != NULL;
     if (flag) fclose(flag);
@@ -198,15 +198,14 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
         return Q_Assets_Init(base, ASSETS_SIZE);
     if (!key) return 0; /* no paks: the caller says so */
 
-    q2_con_highlight("Building the models and skins in flash\n");
-    q2_con_printf("from the paks (once, about 90 seconds)...\n");
+    q2_con_highlight("Building the models and skins in flash from the paks (once, about 90 seconds)...\n");
     writer_t w = {.sector = -1, .percent = -1, .t0 = time_us_32()};
     q2_con_printf("  reading the paks   ");
     assetwriter_t writer = {write_cb, progress_cb, &w};
     int n = Q_Assets_Build(gamedir, ASSETS_SIZE, &writer);
     flush(&w);
     if (n < 0) {
-        q2_con_error("\nFailed: the game runs without them\n(big maps may run out of memory).\n");
+        q2_con_error("\nFailed: the game runs without them (big maps may run out of memory).\n");
         return 0;
     }
     if (forced) remove(rebuild_flag);

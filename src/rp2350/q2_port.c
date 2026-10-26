@@ -51,13 +51,21 @@ static volatile bool core1_ready;
 int64_t parallelWaitUs; /* time the game core waited for core 1 */
 volatile uint32_t core1_busy_us; /* time core 1 spent in jobs */
 
+/* run by core 1 between jobs, at each wake up (every HDMI line's IRQ): the
+ * boot shell's starfield. In SRAM, it goes on during flash writes. */
+void (*volatile q2_core1_idle)(void);
+
 void __not_in_flash_func(q2_core1_main)(void) {
     platform_cyccnt_enable();
     psxv_start();
     core1_ready = true;
     uint32_t seen = 0;
     while (1) {
-        while (job_seq == seen) __wfe();
+        while (job_seq == seen) {
+            __wfe();
+            void (*idle)(void) = q2_core1_idle;
+            if (idle) idle();
+        }
         seen = job_seq;
         __dmb();
         uint32_t t0 = time_us_32();
@@ -285,7 +293,6 @@ void QG_Quit(void) {
 
 void __attribute__((noreturn)) q2_halt(const char *msg) {
     if (msg && *msg) q2_con_error("%s\n", msg);
-    q2_con_printf("Press a key to restart.\n");
     /* drain the keys held while the error came, then wait for a new one */
     sleep_ms(300);
     uint8_t code;
@@ -300,7 +307,6 @@ void __attribute__((noreturn)) q2_halt(const char *msg) {
 }
 
 void QG_FatalError(const char *message) {
-    q2_con_show();
-    q2_con_error("Error:\n");
+    q2_shell_error("ERROR", "Press any key to restart");
     q2_halt(message);
 }

@@ -43,7 +43,9 @@ typedef struct {
     bool used;
 } qfile_t;
 
-static qfile_t files[MAX_FILES];
+/* in PSRAM: SRAM is short, and with FF_FS_TINY these are bookkeeping only
+ * (the sectors go through the volume's window, in SRAM) */
+static qfile_t files[MAX_FILES] __attribute__((section(".psram_bss")));
 /* SCRATCH_Y, the 4 KB SRAM bank nothing else uses: the renderer's rings
  * (the world faces, r_bsp.c, then the edge scan, r_edge.c). It was the SD
  * staging buffer too, until a texture read from the card during a scan

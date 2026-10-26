@@ -49,14 +49,16 @@ unsigned q2_core1_stack_used(void) {
 
 static void wait_for_sd(void) {
     if (platform_mount_sd() == FR_OK) return;
-    q2_con_error("No SD card (FAT32/exFAT).\n");
-    q2_con_printf("Insert one with " BASEDIR "/baseq2/pak0.pak\n");
+    q2_shell_error("NO SD CARD", "Waiting for the card...");
+    q2_con_printf("Insert a FAT32 or exFAT SD card with the Quake II paks:\n\n");
+    q2_con_highlight("  " BASEDIR "/baseq2/pak0.pak\n  " BASEDIR "/baseq2/pak1.pak\n  " BASEDIR "/baseq2/pak2.pak\n");
     while (platform_mount_sd() != FR_OK) {
         for (int i = 0; i < 100; i++) {
             int ch = getchar_timeout_us(10000);
             if (ch >= 0) platform_uart_cmd(ch);
         }
     }
+    q2_shell_welcome();
     q2_con_printf("SD card mounted.\n");
 }
 
@@ -89,7 +91,7 @@ static void map_assets(void) {
     if (n)
         q2_con_printf("Flash assets: %d models and skins\n", n);
     else
-        q2_con_highlight("No flash asset image: models load to PSRAM\n(big maps may run out of memory)\n");
+        q2_con_highlight("No models and skins in flash: they load to PSRAM (big maps may run out of memory).\n");
 }
 
 int main(void) {
@@ -103,9 +105,7 @@ int main(void) {
     multicore_reset_core1();
     multicore_launch_core1_with_stack(q2_core1_main, core1_stack, sizeof(core1_stack));
 
-    q2_con_show();
-    q2_con_highlight("Quake II for RP2350 (frank-quake2 %s)\n", Q2_VERSION);
-    q2_con_printf("%lu MHz\n", (unsigned long)(clock_get_hz(clk_sys) / 1000000));
+    q2_shell_welcome();
     q2_heap_report();
 
     platform_init_usb();
@@ -113,15 +113,17 @@ int main(void) {
 
     struct stat st;
     if (stat(BASEDIR "/baseq2/pak0.pak", &st)) {
-        q2_con_error("No " BASEDIR "/baseq2/pak0.pak on the SD card.\n");
-        q2_con_printf("Copy pak0.pak (and pak1, pak2 of 3.20) there.\n");
+        q2_shell_error("NO GAME DATA", "Press any key to restart");
+        q2_con_printf("No " BASEDIR "/baseq2/pak0.pak on the SD card. Copy the paks of Quake II, patched to 3.20, there:\n\n");
+        q2_con_highlight("  " BASEDIR "/baseq2/pak0.pak\n  " BASEDIR "/baseq2/pak1.pak\n  " BASEDIR "/baseq2/pak2.pak\n");
         q2_halt("");
     }
     map_assets();
 
     static char *argv[MAX_ARGS];
     int argc = build_args(argv);
-    q2_con_printf("Starting Quake II...\n");
+    q2_con_highlight("Starting Quake II...\n");
+    q2_shell_end(2500);
     Quake2_Init(argc, argv);
     q2_add_commands();
 
