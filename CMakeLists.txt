@@ -23,24 +23,27 @@ endif()
 
 cmake_minimum_required(VERSION 3.13)
 
+# M1: Murmulator 1 (PIO HDMI on GPIO 6-13, I2S DAC on 26-28, SD on SPI0).
 # M2: Murmulator 2 (HSTX HDMI on GPIO 12-19, I2S DAC on 9-11, SD on SPI0).
 # Z0: Waveshare RP2350-PiZero (PIO HDMI on GPIO 32-39, an I2S module on
-#     10-12, SD on SPI1); I2S sound only.
-set(BOARD_VARIANT "M2" CACHE STRING "Board: M2 or Z0")
-set_property(CACHE BOARD_VARIANT PROPERTY STRINGS M2 Z0)
-if(BOARD_VARIANT STREQUAL "M2")
+#     10-12, SD on SPI1).
+set(BOARD_VARIANT "M1" CACHE STRING "Board: M1, M2 or Z0")
+set_property(CACHE BOARD_VARIANT PROPERTY STRINGS M1 M2 Z0)
+if(BOARD_VARIANT STREQUAL "M1")
+    set(PICO_BOARD frank_m1_rp2350b)
+elseif(BOARD_VARIANT STREQUAL "M2")
     set(PICO_BOARD frank_m2_rp2350b)
 elseif(BOARD_VARIANT STREQUAL "Z0")
     set(PICO_BOARD frank_z0_rp2350b)
 else()
-    message(FATAL_ERROR "BOARD_VARIANT must be M2 or Z0")
+    message(FATAL_ERROR "BOARD_VARIANT must be M1, M2 or Z0")
 endif()
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
 set(CPU_SPEED "504" CACHE STRING "CPU clock in MHz: 252, 378, 504")
 # Tuned on the frank-castle dev board with the diag firmware ('r' sweeps the
 # PSRAM read delay, 'f' the flash one); use 133 MHz PSRAM if a board misbehaves.
-# Z0: untuned yet, 133 MHz (504 / 4 = 126) with the derived read delay.
-if(BOARD_VARIANT STREQUAL "Z0")
+# M1/Z0: untuned, 133 MHz (504 / 4 = 126) with the derived read delay.
+if(BOARD_VARIANT STREQUAL "M1" OR BOARD_VARIANT STREQUAL "Z0")
     set(PSRAM_SPEED_DEFAULT "133")
     set(PSRAM_RXDELAY_DEFAULT "")
 else()
@@ -85,7 +88,18 @@ endif()
 # clk_peri (UART, SD card SPI): 0 keeps the 48 MHz USB PLL (SPI 24 MHz at most)
 set(PERI_SPEED "168" CACHE STRING "clk_peri in MHz, from clk_sys (0: 48 MHz from the USB PLL)")
 set(SD_SPEED "42" CACHE STRING "SD card SPI clock in MHz (clk_peri / an even divider)")
-if(BOARD_VARIANT STREQUAL "Z0")
+if(BOARD_VARIANT STREQUAL "M1")
+    set(SD_SPI_BUS spi0)
+    set(SD_PIN_SCK 2)
+    set(SD_PIN_MOSI 3)
+    set(SD_PIN_MISO 4)
+    set(SD_PIN_CS 5)
+    set(I2S_DATA_PIN 26)
+    set(I2S_CLK_PIN 27) # and LRCK 28
+    set(I2S_PIO pio1)   # pio0 drives HDMI
+    set(Q2_VIDEO_PIO 1)
+    set(HDMI_PIO_DEFINES HDMI_PIO_BASE_PIN=6 HDMI_PIO_Z0_LAYOUT=0)
+elseif(BOARD_VARIANT STREQUAL "Z0")
     set(SD_SPI_BUS spi1)
     set(SD_PIN_SCK 30)
     set(SD_PIN_MOSI 31)

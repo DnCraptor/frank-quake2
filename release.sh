@@ -8,7 +8,7 @@
 # Licensed under the GNU General Public License v3.0 or later.
 # See LICENSE for the full license text.
 #
-# release.sh - Build release firmware for frank-quake2 (M2)
+# release.sh - Build release firmware for frank-quake2 (M1 / M2 / Z0)
 #
 # Usage: ./release.sh [VERSION] [--publish]
 #   VERSION    version string (e.g. "1.00"), prompted interactively if omitted
@@ -17,8 +17,9 @@
 #
 # Output: release/m2p2_frank-quake2_hdmi_A_BB.uf2 (M2, sound over HDMI),
 #         release/m2p2_frank-quake2_i2s_A_BB.uf2 (M2, sound from the I2S DAC),
+#         release/m1p2_frank-quake2_{hdmi,i2s}_A_BB.uf2 (M1: Murmulator 1)
 #         release/z0p2_frank-quake2_{hdmi,i2s}_A_BB.uf2 (Z0: Waveshare RP2350-PiZero)
-# Clocks: 504 MHz CPU / 168 MHz PSRAM (Z0: 133) / 126 MHz flash (as tuned on the M2;
+# Clocks: 504 MHz CPU / 168 MHz PSRAM (M1/Z0: 133) / 126 MHz flash (as tuned on the M2;
 # the flash at 168 MHz stays a build option, see README).
 # USB is the keyboard/mouse host; the debug console is UART0.
 # No game data is included: the player copies the paks to the SD card, the
@@ -44,6 +45,8 @@ RELEASE_FLASH_SPEED="${RELEASE_FLASH_SPEED:-126}"
 BUILD_MATRIX=(
     "M2:HDMI:m2p2_"
     "M2:I2S:m2p2_"
+    "M1:HDMI:m1p2_"
+    "M1:I2S:m1p2_"
     "Z0:HDMI:z0p2_"
     "Z0:I2S:z0p2_"
 )
@@ -81,7 +84,7 @@ echo -e "${CYAN}│                  frank-quake2 Release Builder               
 echo -e "${CYAN}└─────────────────────────────────────────────────────────────────┘${NC}"
 echo ""
 echo -e "Last version: ${YELLOW}${LAST_MAJOR}.$(printf '%02d' $LAST_MINOR)${NC}"
-echo -e "Variants: ${CYAN}${#BUILD_MATRIX[@]}${NC} (M2)"
+echo -e "Variants: ${CYAN}${#BUILD_MATRIX[@]}${NC} (M1/M2/Z0)"
 echo -e "Clocks:   ${CYAN}${RELEASE_CPU_SPEED}/${RELEASE_PSRAM_SPEED}/${RELEASE_FLASH_SPEED} MHz${NC}"
 echo ""
 
@@ -166,15 +169,18 @@ if [[ $PUBLISH -eq 1 ]]; then
     TAG="v${VERSION_DOT}"
     NOTES="$RELEASE_DIR/notes_${VERSION}.md"
     cat > "$NOTES" <<NOTES_EOF
-Quake II for the FRANK / Murmulator M2 and the Waveshare RP2350-PiZero (Z0) (RP2350, 8 MB PSRAM, HDMI, USB keyboard and mouse).
+Quake II for Murmulator M1/M2 and Waveshare RP2350-PiZero (Z0) (RP2350, 8 MB PSRAM, HDMI, USB keyboard and mouse).
 
 **Install**
 
 1. Pick the firmware for your board and sound output. M2: \`${SUCCEEDED[0]}\` plays the
    sound over HDMI (the TV's speakers), \`${SUCCEEDED[1]}\` from the board's I2S DAC.
-   Z0 (Waveshare RP2350-PiZero): \`${SUCCEEDED[2]}\` over HDMI, \`${SUCCEEDED[3]}\` from an
-   I2S DAC module (PCM5102A: DIN GP10, BCK GP11, LRCK GP12). Hold BOOTSEL, plug the board
-   in, and copy it to the RP2350 drive (or \`picotool load -f FILE.uf2\`).
+   M1 (Murmulator 1): \`${SUCCEEDED[2]}\` over PIO HDMI, \`${SUCCEEDED[3]}\` from the
+   board's I2S DAC (GP26/27/28).
+   Z0 (Waveshare RP2350-PiZero): \`${SUCCEEDED[4]}\` over HDMI, \`${SUCCEEDED[5]}\` from an
+   I2S DAC module (PCM5102A: DIN GP10, BCK GP11, LRCK GP12).
+   Hold BOOTSEL, plug the board in, and copy it to the RP2350 drive
+   (or \`picotool load -f FILE.uf2\`).
 2. Copy the retail Quake II data, patched to 3.20, to the SD card (FAT32 or exFAT):
    \`/quake2/baseq2/pak0.pak\`, \`pak1.pak\`, \`pak2.pak\`.
 3. Start the board. The first start builds the models and skins into flash from the

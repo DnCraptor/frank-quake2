@@ -28,7 +28,9 @@
 #ifndef Q2_VERSION
 #define Q2_VERSION "?"
 #endif
-#ifdef BOARD_Z0
+#if defined(BOARD_M1)
+#define BOARD_VARIANT_NAME "M1"
+#elif defined(BOARD_Z0)
 #define BOARD_VARIANT_NAME "Z0"
 #else
 #define BOARD_VARIANT_NAME "M2"

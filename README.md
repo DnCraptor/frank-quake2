@@ -1,8 +1,8 @@
 # frank-quake2
 
-Quake II for the RP2350: FRANK / Murmulator M2 boards (HDMI via HSTX) and
-the Waveshare RP2350-PiZero, "Z0" (HDMI via PIO); sound over HDMI or from an
-I2S DAC, 8 MB PSRAM, USB keyboard and mouse, game data on the SD card.
+Quake II for the RP2350: Murmulator M1 (PIO HDMI), M2 (HSTX HDMI) and
+Waveshare RP2350-PiZero "Z0" (PIO HDMI); sound over HDMI or from an I2S DAC,
+8 MB PSRAM, USB keyboard and mouse, game data on the SD card.
 
 The engine is the ESP32-S3 port of Quake II
 ([recrof/Quake2-ESP32S3](https://github.com/recrof/Quake2-ESP32S3), id's
@@ -25,6 +25,8 @@ from frank-castle. Work in progress.
 1. Pick the release's firmware for your board and sound output:
    - M2: `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
      `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC);
+   - M1: `m1p2_frank-quake2_hdmi_A_BB.uf2` (PIO HDMI audio) or
+     `m1p2_frank-quake2_i2s_A_BB.uf2` (I2S DAC);
    - Z0 (Waveshare RP2350-PiZero): `z0p2_frank-quake2_hdmi_A_BB.uf2` or
      `z0p2_frank-quake2_i2s_A_BB.uf2` (an I2S DAC module), see below.
 
@@ -45,6 +47,15 @@ from frank-castle. Work in progress.
 Saves and `config.cfg` are written to `/quake2/baseq2/`. An optional
 `/quake2/args.txt` adds to the command line (e.g. `+map base1`). No game data
 is included in this repository or in the releases.
+
+### M1 (Murmulator 1.x)
+
+- PIO HDMI on GP6-13 (clock pair GP6/7, data pairs GP8-13); HSTX is not
+  used. Sound over PIO HDMI, or over the board's I2S DAC on GP26/27/28.
+- SD card on SPI0: SCK GP2, MOSI GP3, MISO GP4, CS GP5.
+- QMI PSRAM CS: GP47 on RP2350B or GP19 on RP2350A.
+- Keyboard and mouse use the native USB port. Debug UART0 on GP0/1
+  shares the physical M1 PS/2 keyboard pins; do not connect both.
 
 ### Z0 (Waveshare RP2350-PiZero)
 
@@ -87,16 +98,17 @@ The PC image is for 16 MB of flash; for a smaller chip pass
 ```
 ./build.sh            # M2, 504 MHz CPU, 168 MHz PSRAM, 126 MHz flash, I2S sound
 AUDIO=HDMI ./build.sh # sound over HDMI
+./build.sh M1         # Murmulator 1, PIO HDMI
 ./build.sh Z0         # Waveshare RP2350-PiZero
 ./flash.sh            # picotool, board in BOOTSEL
 ./swd_flash.sh        # or over SWD with a Debugprobe
 ./flash.sh frank-quake2-diag   # bring-up firmware (HDMI, PSRAM, SD, I2S, USB)
-./release.sh [A.BB] [--publish]  # release/m2p2_frank-quake2_{hdmi,i2s}_A_BB.uf2 (+ GitHub release)
+./release.sh [A.BB] [--publish]  # release/{m1p2,m2p2,z0p2}_frank-quake2_*.uf2
 ```
 
 Options (cmake `-D...`):
 
-- `BOARD_VARIANT=M2` (the default) or `Z0`.
+- `BOARD_VARIANT=M2` (the default), `M1` or `Z0`.
 - `AUDIO_TYPE=HDMI` or `I2S` (the default): the sound output.
 - `FLASH_SPEED=168 FLASH_RXDELAY=6`: flash at 168 MHz instead of 126, about
   2.5% faster (the models and skins are read from flash). Above the flash

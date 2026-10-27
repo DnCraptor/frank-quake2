@@ -12,6 +12,13 @@
 #include "hardware/vreg.h"
 
 /*
+ * M1 (Murmulator 1):
+ *   HDMI:  GPIO6-13 via PIO (6/7 CLK, 8/9 D0, 10/11 D1, 12/13 D2)
+ *   SD:    SPI0 SCK=2, MOSI=3, MISO=4, CS=5
+ *   I2S:   DATA=26, BCLK=27, LRCK=28
+ *   PSRAM: CS1=19 (RP2350A) or 47 (RP2350B)
+ *   UART:  GPIO0/1 (shared with M1's PS/2 connector; USB is the HID host)
+ *
  * M2 GPIO layout on RP2350B:
  *   HDMI:  GPIO12-19 via HSTX (12/13 CLK, 14/15 D0, 16/17 D1, 18/19 D2)
  *   SD:    SPI0 SCK=6, MOSI=7, MISO=4, CS=5
@@ -29,7 +36,7 @@
  * The pins the drivers use come from CMakeLists.txt.
  */
 
-#if !defined(BOARD_M2) && !defined(BOARD_Z0)
+#if !defined(BOARD_M1) && !defined(BOARD_M2) && !defined(BOARD_Z0)
 #define BOARD_M2
 #endif
 
@@ -49,7 +56,11 @@
 #define FLASH_MAX_FREQ_MHZ 66
 #endif
 
+#ifdef BOARD_M1
+#define PSRAM_PIN_RP2350A 19
+#else
 #define PSRAM_PIN_RP2350A 8
+#endif
 #define PSRAM_PIN_RP2350B 47
 
 static inline uint get_psram_pin(void) {
@@ -57,7 +68,15 @@ static inline uint get_psram_pin(void) {
     return (package_sel & 1) ? PSRAM_PIN_RP2350A : PSRAM_PIN_RP2350B;
 }
 
-#ifdef BOARD_Z0
+#ifdef BOARD_M1
+#define HDMI_BASE_PIN 6
+#ifndef SDCARD_PIN_SPI0_SCK
+#define SDCARD_PIN_SPI0_SCK  2
+#define SDCARD_PIN_SPI0_MOSI 3
+#define SDCARD_PIN_SPI0_MISO 4
+#define SDCARD_PIN_SPI0_CS   5
+#endif
+#elif defined(BOARD_Z0)
 #define HDMI_BASE_PIN 32
 #ifndef SDCARD_PIN_SPI0_SCK
 #define SDCARD_PIN_SPI0_SCK  30
