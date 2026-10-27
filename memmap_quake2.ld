@@ -166,12 +166,12 @@ SECTIONS
         . = ALIGN(4);
         __psram_data_start__ = .;
         /* the engine outside the renderer: game, client, server, common */
-        *quake2_core.dir/src/quake2/client/*.o(.data .data.*)
-        *quake2_core.dir/src/quake2/game/*.o(.data .data.*)
-        *quake2_core.dir/src/quake2/server/*.o(.data .data.*)
-        *quake2_core.dir/src/quake2/qcommon/*.o(.data .data.*)
-        *quake2_core.dir/src/quake2/other/*.o(.data .data.*)
-        *quake2_core.dir/src/quake2/net/*.o(.data .data.*)
+        *quake2_core.dir/src/quake2/client/*.o*(.data .data.*)
+        *quake2_core.dir/src/quake2/game/*.o*(.data .data.*)
+        *quake2_core.dir/src/quake2/server/*.o*(.data .data.*)
+        *quake2_core.dir/src/quake2/qcommon/*.o*(.data .data.*)
+        *quake2_core.dir/src/quake2/other/*.o*(.data .data.*)
+        *quake2_core.dir/src/quake2/net/*.o*(.data .data.*)
         *(.psram_data*)
         . = ALIGN(4);
         __psram_data_end__ = .;
@@ -181,12 +181,12 @@ SECTIONS
     .psram_bss (NOLOAD) : {
         . = ALIGN(4);
         __psram_bss_start__ = .;
-        *quake2_core.dir/src/quake2/client/*.o(.bss .bss.* COMMON)
-        *quake2_core.dir/src/quake2/game/*.o(.bss .bss.* COMMON)
-        *quake2_core.dir/src/quake2/server/*.o(.bss .bss.* COMMON)
-        *quake2_core.dir/src/quake2/qcommon/*.o(.bss .bss.* COMMON)
-        *quake2_core.dir/src/quake2/other/*.o(.bss .bss.* COMMON)
-        *quake2_core.dir/src/quake2/net/*.o(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/client/*.o*(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/game/*.o*(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/server/*.o*(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/qcommon/*.o*(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/other/*.o*(.bss .bss.* COMMON)
+        *quake2_core.dir/src/quake2/net/*.o*(.bss .bss.* COMMON)
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.ext_ram.bss*)))
         *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.psram_bss*)))
         . = ALIGN(4);
