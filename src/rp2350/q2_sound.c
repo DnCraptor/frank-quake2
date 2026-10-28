@@ -96,16 +96,46 @@ static void start_output(void) {
 
 #else /* I2S */
 
+/* Keep the mixer at its native rate, but run the physical I2S DAC at
+ * 44.1 kHz. At 11.025 kHz its LRCLK/image frequencies are audible on
+ * some boards. Linear interpolation suppresses sample-hold images. */
+#define Q2_I2S_RATE 44100u
+#if (Q2_I2S_RATE % Q2_SAMPLE_RATE) != 0
+#error "I2S output rate must be an integer multiple of the mixer rate"
+#endif
+#define Q2_I2S_FACTOR (Q2_I2S_RATE / Q2_SAMPLE_RATE)
+static unsigned i2s_phase;
+static uint32_t i2s_cur, i2s_next;
+static bool i2s_primed;
+
 static void __not_in_flash_func(i2s_fill)(int idx, uint32_t *buf, uint32_t frames) {
     (void)idx;
     uint32_t f = play_frame;
-    for (uint32_t i = 0; i < frames; i++) buf[i] = ring[(f + i) & (RING_FRAMES - 1)];
-    play_frame = f + frames;
+    if (!i2s_primed) {
+        i2s_cur = ring[f & (RING_FRAMES - 1)];
+        i2s_next = ring[(f + 1) & (RING_FRAMES - 1)];
+        i2s_primed = true;
+    }
+    for (uint32_t i = 0; i < frames; ++i) {
+        int32_t l0 = (int16_t)i2s_cur, r0 = (int16_t)(i2s_cur >> 16);
+        int32_t l1 = (int16_t)i2s_next, r1 = (int16_t)(i2s_next >> 16);
+        int32_t l = l0 + (l1 - l0) * (int32_t)i2s_phase / Q2_I2S_FACTOR;
+        int32_t r = r0 + (r1 - r0) * (int32_t)i2s_phase / Q2_I2S_FACTOR;
+        /* PIO shifts MSB first: WS=0 is high 16 bits (left channel). */
+        buf[i] = ((uint32_t)(uint16_t)l << 16) | (uint16_t)r;
+        if (++i2s_phase == Q2_I2S_FACTOR) {
+            i2s_phase = 0;
+            ++f;
+            i2s_cur = i2s_next;
+            i2s_next = ring[(f + 1) & (RING_FRAMES - 1)];
+        }
+    }
+    play_frame = f; /* units are mixer frames, not 44.1 kHz output frames */
 }
 
 static void start_output(void) {
     static i2s_config_t cfg;
-    cfg.sample_freq = Q2_SAMPLE_RATE;
+    cfg.sample_freq = Q2_I2S_RATE;
     cfg.channel_count = 2;
     cfg.data_pin = PICO_AUDIO_I2S_DATA_PIN;
     cfg.clock_pin_base = PICO_AUDIO_I2S_CLOCK_PIN_BASE;

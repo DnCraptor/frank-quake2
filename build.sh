@@ -10,6 +10,7 @@
 # delays tuned per board with the diag firmware; see CMakeLists.txt).
 # USB is always the keyboard/mouse host; the debug console is UART0 on GPIO0/1.
 # AUDIO=HDMI ./build.sh: sound over HDMI instead of the I2S DAC (default I2S).
+# Result: bin/<board>-frank-quake2-<video>-<audio>-<clocks>-v<version>.uf2.
 
 set -e
 

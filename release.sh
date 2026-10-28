@@ -126,7 +126,18 @@ for ENTRY in "${BUILD_MATRIX[@]}"; do
     IFS=':' read -r BOARD AUDIO PREFIX <<< "$ENTRY"
     AUDIO_LC=$(echo "$AUDIO" | tr '[:upper:]' '[:lower:]')
     LABEL="${PREFIX}${AUDIO_LC}"
-    OUTPUT_NAME="${PREFIX}frank-quake2_${AUDIO_LC}_${VERSION}.uf2"
+    if [[ "$BOARD" = "M2" ]]; then
+        VIDEO=HSTX
+        PSRAM_MHZ=$RELEASE_PSRAM_SPEED
+    else
+        VIDEO=PIO
+        PSRAM_MHZ=133
+    fi
+    if (( RELEASE_CPU_SPEED >= 504 )); then VOLT=1.65V
+    elif (( RELEASE_CPU_SPEED >= 378 )); then VOLT=1.60V
+    else VOLT=1.50V
+    fi
+    OUTPUT_NAME="${PREFIX%_}-frank-quake2-${VIDEO}-${AUDIO}-${RELEASE_CPU_SPEED}MHz-${VOLT}-P${PSRAM_MHZ}-F${RELEASE_FLASH_SPEED}-v${VERSION_DOT}.uf2"
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

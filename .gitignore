@@ -1,4 +1,5 @@
 build/
+bin/
 release/
 .DS_Store
 # game data is never committed

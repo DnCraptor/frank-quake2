@@ -22,13 +22,11 @@ from frank-castle. Work in progress.
 
 ## Installing
 
-1. Pick the release's firmware for your board and sound output:
-   - M2: `m2p2_frank-quake2_hdmi_A_BB.uf2` (the TV's speakers) or
-     `m2p2_frank-quake2_i2s_A_BB.uf2` (the board's I2S DAC);
-   - M1: `m1p2_frank-quake2_hdmi_A_BB.uf2` (PIO HDMI audio) or
-     `m1p2_frank-quake2_i2s_A_BB.uf2` (I2S DAC);
-   - Z0 (Waveshare RP2350-PiZero): `z0p2_frank-quake2_hdmi_A_BB.uf2` or
-     `z0p2_frank-quake2_i2s_A_BB.uf2` (an I2S DAC module), see below.
+1. Pick a UF2 for your board, video driver and audio output:
+   - M2: `m2p2-frank-quake2-HSTX-{I2S,HDMI}-...-vA.BB.uf2`;
+   - M1: `m1p2-frank-quake2-PIO-{I2S,HDMI}-...-vA.BB.uf2`;
+   - Z0: `z0p2-frank-quake2-PIO-{I2S,HDMI}-...-vA.BB.uf2`.
+   The filenames also encode CPU MHz, voltage, PSRAM/flash limits and version.
 
    Hold BOOTSEL, plug the board in, and copy it to the RP2350 drive (or
    `picotool load -f FILE.uf2`).
@@ -98,6 +96,18 @@ The PC image is for 16 MB of flash; for a smaller chip pass
 - PS/2 keyboard on GP2 (CLK) / GP3 (DATA) and USB HID concurrently.
 - UART0 is disabled in the game firmware.
 
+## NES/SNES controller
+
+The game polls two serial gamepads in parallel with USB HID and PS/2.
+Pins: M1 CLK=GP14, LATCH=GP15, DATA1/2=GP16/17; M2 GP20/21/26/27;
+Z0 GP4/5/7/8 (order: CLK/LATCH/DATA1/DATA2).
+D-pad = arrow keys; A = Ctrl (fire), B = Space (jump); Start = Esc;
+Select = Tab; SNES Y = Shift, X = / (next weapon), L/R = A/D (strafe).
+The buttons follow normal Quake II keyboard bindings in config.cfg.
+
+I2S outputs at 44.1 kHz with interpolation from the Quake II mixer rate;
+HDMI output is unchanged.
+
 ## Building
 
 ```
@@ -125,6 +135,10 @@ Options (cmake `-D...`):
 Faster, blurrier textures (console or `/quake2/args.txt`): `sw_mipcap 2`
 (+9% in demo1) or `sw_mipscale 2` (+5%). `vsync 0` stops waiting for the
 page flip at 60 Hz: a few % faster, but the picture tears.
+
+A regular CMake/VS Code build writes `bin/<board>-frank-quake2-<video>-<audio>-<CPU>MHz-<voltage>-P<PSRAM>-F<flash>-v<version>.uf2`,
+for example `bin/m1p2-frank-quake2-PIO-I2S-504MHz-1.65V-P133-F126-v1.05.uf2`.
+The original `build/frank-quake2.uf2` is retained.
 
 Input: USB HID and PS/2 keyboard simultaneously. M1 uses GP0/1 for PS/2;
 M2 and Z0 use GP2/3. UART is disabled in game builds; the standalone
