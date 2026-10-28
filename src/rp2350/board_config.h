@@ -17,21 +17,21 @@
  *   SD:    SPI0 SCK=2, MOSI=3, MISO=4, CS=5
  *   I2S:   DATA=26, BCLK=27, LRCK=28
  *   PSRAM: CS1=19 (RP2350A) or 47 (RP2350B)
- *   UART:  GPIO0/1 (shared with M1's PS/2 connector; USB is the HID host)
+ *   PS/2:  CLK=0, DATA=1 (UART disabled in game firmware)
  *
  * M2 GPIO layout on RP2350B:
  *   HDMI:  GPIO12-19 via HSTX (12/13 CLK, 14/15 D0, 16/17 D1, 18/19 D2)
  *   SD:    SPI0 SCK=6, MOSI=7, MISO=4, CS=5
  *   I2S:   DATA=9, BCLK=10, LRCK=11
  *   PSRAM: CS1=47 (RP2350B), 8 MB
- *   UART:  TX=0, RX=1 (debug console; native USB is the keyboard host)
+ *   PS/2:  CLK=2, DATA=3; native USB is an independent HID host
  *
  * Z0 (Waveshare RP2350-PiZero, RP2350B):
  *   HDMI:  GPIO32-39 via PIO (32..37 the data pairs, 38/39 CLK)
  *   SD:    SPI1 SCK=30, MOSI=31, MISO=40, CS=43
  *   I2S:   a PCM5102A module, DATA=10, BCLK=11, LRCK=12
  *   PSRAM: CS1=47, 8 MB
- *   UART:  TX=0, RX=1; native USB is the keyboard host
+ *   PS/2:  CLK=2, DATA=3; native USB is an independent HID host
  *
  * The pins the drivers use come from CMakeLists.txt.
  */

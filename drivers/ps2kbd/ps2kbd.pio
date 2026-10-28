@@ -1,0 +1,53 @@
+; PS/2 Set 2 keyboard receive, adapted from frank-msx/drivers/ps2/ps2.pio
+; Original SPDX-License-Identifier: GPL-2.0-or-later
+; CLK=IN base, DATA=IN base+1; 11 samples of CLK/DATA packed into 22 bits.
+.program ps2_rx
+.wrap_target
+start:
+    wait 1 pin 0
+    wait 0 pin 0
+    set x, 10
+bitloop:
+    nop
+    nop
+    in pins, 2
+    wait 1 pin 0
+    jmp x-- continue
+    push
+    jmp start
+continue:
+    wait 0 pin 0
+    jmp bitloop
+.wrap
+
+% c-sdk {
+#include "hardware/pio.h"
+#include "hardware/clocks.h"
+
+static inline void ps2_rx_program_init(PIO pio, uint sm, uint offset, uint clk_pin) {
+    pio_sm_config c = ps2_rx_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, clk_pin);
+    sm_config_set_in_shift(&c, false, true, 22);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / (8.0f * 16700.0f));
+    pio_gpio_init(pio, clk_pin);
+    pio_gpio_init(pio, clk_pin + 1);
+    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin, 2, false);
+    gpio_pull_up(clk_pin);
+    gpio_pull_up(clk_pin + 1);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+/* Each 2-bit sample has CLK in bit 0 and DATA in bit 1. */
+static inline int ps2_rx_decode_frame(uint32_t raw) {
+    if (((raw >> 21) & 1) != 0 || ((raw >> 1) & 1) != 1) return -1;
+    uint8_t data = 0;
+    for (int i = 0; i < 8; ++i)
+        data |= ((raw >> (19 - 2*i)) & 1) << i;
+    int parity = (raw >> 3) & 1;
+    int odd_parity = 1;
+    for (uint8_t x = data; x; x >>= 1) odd_parity ^= x & 1;
+    return parity == odd_parity ? data : -1;
+}
+%}

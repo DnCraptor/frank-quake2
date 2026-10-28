@@ -68,11 +68,9 @@ typedef struct {
     int percent;
 } writer_t;
 
-/* Before each operation: the UART's pending output out, the XIP cache
- * cleaned (the ROM's flush drops dirty PSRAM lines). */
+/* Before each operation: clean the XIP cache (the ROM's flush drops
+ * dirty PSRAM lines). The game firmware has no UART output. */
 static void flash_op_prepare(void) {
-    extern void uart_buffered_flush(void);
-    uart_buffered_flush();
     xip_cache_clean_all();
 }
 

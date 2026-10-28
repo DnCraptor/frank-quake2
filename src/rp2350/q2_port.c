@@ -26,6 +26,7 @@
 #include "quakegeneric.h"
 #include "ref_soft/r_local.h"
 #include "usbhid.h"
+#include "ps2kbd.h"
 
 int QG_Milliseconds(void) {
     return (int)(time_us_64() / 1000);
@@ -305,8 +306,9 @@ void __attribute__((noreturn)) q2_halt(const char *msg) {
         platform_usb_poll();
         while (usbhid_get_key_action(&code, &down))
             if (down) platform_reboot(false);
-        int ch = getchar_timeout_us(1000);
-        if (ch >= 0) platform_uart_cmd(ch);
+        while (ps2kbd_get_key_action(&code, &down))
+            if (down) platform_reboot(false);
+        sleep_ms(1);
     }
 }
 

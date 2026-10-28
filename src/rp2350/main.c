@@ -57,10 +57,8 @@ static void wait_for_sd(void) {
     q2_con_printf("Insert a FAT32 or exFAT SD card with the Quake II paks:\n\n");
     q2_con_highlight("  " BASEDIR "/baseq2/pak0.pak\n  " BASEDIR "/baseq2/pak1.pak\n  " BASEDIR "/baseq2/pak2.pak\n");
     while (platform_mount_sd() != FR_OK) {
-        for (int i = 0; i < 100; i++) {
-            int ch = getchar_timeout_us(10000);
-            if (ch >= 0) platform_uart_cmd(ch);
-        }
+        platform_usb_poll();
+        sleep_ms(100);
     }
     q2_shell_welcome();
     q2_con_printf("SD card mounted.\n");
@@ -113,6 +111,7 @@ int main(void) {
     q2_heap_report();
 
     platform_init_usb();
+    q2_input_init(); /* PS/2 PIO keyboard, alongside USB HID */
     wait_for_sd();
 
     struct stat st;

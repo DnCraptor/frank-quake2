@@ -49,6 +49,7 @@ void q2_con_highlight(const char *fmt, ...) __attribute__((format(printf, 1, 2))
 void q2_con_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* q2_input.c */
+void q2_input_init(void);
 void q2_input_poll(void);
 
 /* q2_port.c */

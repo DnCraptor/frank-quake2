@@ -72,6 +72,7 @@ endif()
 set(Q2_FB_COUNT "2" CACHE STRING "8-bit framebuffers in SRAM: 2 or 3")
 # Native USB is always the keyboard/mouse host; debug console is UART0 (GPIO0/1).
 set(USB_HID_ENABLED ON)
+# PS/2 keyboard and USB HID are enabled concurrently on all three boards.
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -94,6 +95,7 @@ if(BOARD_VARIANT STREQUAL "M1")
     set(SD_PIN_MOSI 3)
     set(SD_PIN_MISO 4)
     set(SD_PIN_CS 5)
+    set(PS2_CLK_PIN 0)
     set(I2S_DATA_PIN 26)
     set(I2S_CLK_PIN 27) # and LRCK 28
     set(I2S_PIO pio1)   # pio0 drives HDMI
@@ -105,6 +107,7 @@ elseif(BOARD_VARIANT STREQUAL "Z0")
     set(SD_PIN_MOSI 31)
     set(SD_PIN_MISO 40)
     set(SD_PIN_CS 43)
+    set(PS2_CLK_PIN 2)
     set(I2S_DATA_PIN 10)
     set(I2S_CLK_PIN 11) # and LRCK 12
     set(I2S_PIO pio1)   # pio0 is the video's, its GPIO window starts at 16
@@ -115,6 +118,7 @@ else()
     set(SD_PIN_MOSI 7)
     set(SD_PIN_MISO 4)
     set(SD_PIN_CS 5)
+    set(PS2_CLK_PIN 2)
     set(I2S_DATA_PIN 9)
     set(I2S_CLK_PIN 10)
     set(I2S_PIO pio0)
@@ -153,6 +157,7 @@ pico_sdk_init()
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/usbhid)
+add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/audio)
 
 if(Q2_VIDEO_PIO)
@@ -204,6 +209,7 @@ set(Q2_DEFINES
     Q2_VIDEO_PIO=${Q2_VIDEO_PIO}
     Q2_I2S_PIO=${I2S_PIO}
     Q2_FB_COUNT=${Q2_FB_COUNT}
+    Q2_PS2_CLK_PIN=${PS2_CLK_PIN}
 )
 
 # Board bring-up and the C heap, shared by the diag and game firmware
@@ -211,7 +217,6 @@ add_library(q2_platform STATIC
     src/common/font6x8.c
     src/common/fbcon.c
     src/rp2350/platform.c
-    src/rp2350/uart_buffered.c
     src/rp2350/q2_malloc.c
 )
 target_include_directories(q2_platform PUBLIC src/common src/rp2350 src/rp2350/compat)
@@ -224,7 +229,7 @@ target_link_libraries(q2_platform PUBLIC
 # Phase 0: hardware bring-up firmware
 # ---------------------------------------------------------------------
 if(NOT Q2_VIDEO_PIO) # the diag firmware is HSTX only
-add_executable(frank-quake2-diag src/diag/diag_main.c)
+add_executable(frank-quake2-diag src/diag/diag_main.c src/rp2350/uart_buffered.c)
 target_link_libraries(frank-quake2-diag q2_platform)
 target_link_options(frank-quake2-diag PRIVATE -Wl,--wrap=panic
     -Wl,--defsym=__q2_assets_offset=${Q2_ASSETS_OFFSET})
@@ -314,7 +319,7 @@ target_compile_definitions(frank-quake2 PRIVATE ESP_PLATFORM=1 PLATFORM_RP2350=1
 target_compile_options(frank-quake2 PRIVATE -fsigned-char)
 target_compile_definitions(frank-quake2 PRIVATE PICO_MALLOC_PANIC=0)
 target_compile_definitions(frank-quake2 PRIVATE ${Q2_DEFINES})
-target_link_libraries(frank-quake2 q2_platform hardware_dma hardware_xip_cache hardware_flash pico_multicore pico_sync)
+target_link_libraries(frank-quake2 q2_platform ps2kbd hardware_dma hardware_xip_cache hardware_flash pico_multicore pico_sync)
 pico_set_linker_script(frank-quake2 ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
 target_link_options(frank-quake2 PRIVATE
     -Wl,--no-enum-size-warning
@@ -325,5 +330,5 @@ target_link_options(frank-quake2 PRIVATE
 )
 set_property(TARGET frank-quake2 APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/memmap_quake2.ld)
 pico_enable_stdio_usb(frank-quake2 0)
-pico_enable_stdio_uart(frank-quake2 1)
+pico_enable_stdio_uart(frank-quake2 0)
 pico_add_extra_outputs(frank-quake2)

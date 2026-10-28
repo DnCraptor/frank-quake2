@@ -38,8 +38,9 @@
  * first, or the boot ROM cannot read the flash and the chip hangs until a
  * power cycle (see psram_reset_to_spi). */
 void __attribute__((noreturn)) platform_reboot(bool bootsel) {
-    extern void uart_buffered_flush(void);
-    uart_buffered_flush(); /* crash reports sit in the ring until drained */
+    /* The diagnostic target links the UART buffer; the game does not. */
+    extern void uart_buffered_flush(void) __attribute__((weak));
+    if (uart_buffered_flush) uart_buffered_flush();
     if (get_core_num() == 0) {
         /* stop core 1 (it may be reading PSRAM). Not multicore_reset_core1():
          * that waits for core 1's boot ROM to answer on the FIFO, and hung
@@ -289,10 +290,10 @@ uint32_t platform_init_clocks(void) {
         clock_configure_int_divider(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, sys, div);
     }
 #endif
-    /* The UART baud divisor was computed at the boot clock. */
+    /* Diag retains its UART console; game uses neither UART pins nor UART stdio. */
     stdio_init_all();
-    extern void uart_buffered_init(void);
-    uart_buffered_init(); /* printf must never stall the game */
+    extern void uart_buffered_init(void) __attribute__((weak));
+    if (uart_buffered_init) uart_buffered_init();
     uint32_t hz = clock_get_hz(clk_sys);
     printf("sys clock %lu Hz, peri %lu Hz\n", (unsigned long)hz, (unsigned long)clock_get_hz(clk_peri));
     return hz;

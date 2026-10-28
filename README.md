@@ -54,8 +54,8 @@ is included in this repository or in the releases.
   used. Sound over PIO HDMI, or over the board's I2S DAC on GP26/27/28.
 - SD card on SPI0: SCK GP2, MOSI GP3, MISO GP4, CS GP5.
 - QMI PSRAM CS: GP47 on RP2350B or GP19 on RP2350A.
-- Keyboard and mouse use the native USB port. Debug UART0 on GP0/1
-  shares the physical M1 PS/2 keyboard pins; do not connect both.
+- PS/2 keyboard on GP0 (CLK) / GP1 (DATA), alongside USB HID host.
+  UART0 is disabled in the game firmware.
 
 ### Z0 (Waveshare RP2350-PiZero)
 
@@ -64,8 +64,8 @@ is included in this repository or in the releases.
   each line's blanking), or the sound from an I2S DAC module (PCM5102A):
   DIN GP10, BCK GP11, LRCK GP12.
 - SD card slot (SPI1: 30/31/40/43), PSRAM on board (CS GPIO47).
-- Keyboard and mouse on the native USB port (USB host, through an OTG
-  adapter or hub). The debug UART (GPIO0/1) is not on its header.
+- PS/2 keyboard on GP2 (CLK) / GP3 (DATA), in parallel with USB keyboard
+  and mouse (native USB host through an OTG adapter or hub).
 - PSRAM at 504 / 4 = 126 MHz (the M2 runs it at 168, tuned there): somewhat
   slower until it is tuned on a Z0.
 
@@ -92,6 +92,11 @@ tools/mkassets.py assets.bin pak2.pak pak1.pak pak0.pak
 
 The PC image is for 16 MB of flash; for a smaller chip pass
 `--size $(( (8 << 20) - 0x1C0000 ))` (8 MB) to mkassets.py.
+
+### M2 (Murmulator 2.x)
+
+- PS/2 keyboard on GP2 (CLK) / GP3 (DATA) and USB HID concurrently.
+- UART0 is disabled in the game firmware.
 
 ## Building
 
@@ -121,8 +126,9 @@ Faster, blurrier textures (console or `/quake2/args.txt`): `sw_mipcap 2`
 (+9% in demo1) or `sw_mipscale 2` (+5%). `vsync 0` stops waiting for the
 page flip at 60 Hz: a few % faster, but the picture tears.
 
-Debug console: UART0 on GPIO0/1, 115200. Lines typed there go to the Quake
-console; `~BOOT~` reboots into BOOTSEL.
+Input: USB HID and PS/2 keyboard simultaneously. M1 uses GP0/1 for PS/2;
+M2 and Z0 use GP2/3. UART is disabled in game builds; the standalone
+HSTX diagnostic firmware retains the UART console for hardware testing.
 
 ## Development
 
