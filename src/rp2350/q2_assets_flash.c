@@ -16,10 +16,10 @@
  * XIP cache flush that drops the lines (PSRAM ones included): the cache is
  * cleaned first so that no PSRAM write is lost. The data is assembled in
  * 4 KB sectors in SRAM (the renderer's ring buffer, unused at boot).
- * The image takes the flash from Q2_ASSETS_OFFSET to its real end (8 MB
- * boards exist: writing past the end wrapped around and erased the
- * firmware, the build stopping at 37 %); Q_Assets_Build keeps the smaller
- * files when they do not all fit.
+ * The image takes the flash from Q2_ASSETS_OFFSET to the size read from the
+ * SPI NOR JEDEC ID (2/4/8/16 MiB chips); an unknown ID disables flash
+ * writes instead of risking a wrap into the firmware. Q_Assets_Build stores
+ * the subset that fits and reports any omitted models/skins.
  *
  * The SDK's XIP restart sets the flash back to its boot timing: ours is put
  * back before any code runs from the flash again (flash_op). The board
@@ -38,19 +38,36 @@
 #include "other/q_assets.h"
 
 #ifndef Q2_ASSETS_OFFSET
-#define Q2_ASSETS_OFFSET 0x1C0000
+#define Q2_ASSETS_OFFSET 0x100000
 #endif
-/* The flash's real size: a smaller chip ignores the high address bits, so
- * past its end the XIP window shows its start again (the firmware's vector
- * table). Read only, no flash command. 16 MB when no mirror is found. */
+
+static uint32_t physical_flash_bytes; /* 0 means unknown: never erase! */
+static uint32_t flash_jedec_id;
+
+/* Must run BEFORE platform_init_clocks(), platform_init_psram(), and the
+ * second core. flash_do_cmd exits XIP and reenables it via boot ROM: doing
+ * so after PSRAM/QMI timing setup is unsafe. Common SPI NOR density codes
+ * 0x15..0x18 mean 2, 4, 8, 16 MiB respectively. The RP2350 XIP CS0 window
+ * is 16 MiB, so larger devices are capped to that addressable window. */
+void q2_assets_probe_flash(void) {
+    const uint8_t tx[4] = {0x9f, 0, 0, 0}; /* RDID */
+    uint8_t rx[4] = {0};
+    flash_do_cmd(tx, rx, sizeof(tx));
+    flash_jedec_id = (uint32_t)rx[1] << 16 | (uint32_t)rx[2] << 8 | rx[3];
+    unsigned exp = rx[3];
+    if (rx[1] != 0 && rx[1] != 0xff && exp >= 0x14 && exp <= 0x18)
+        physical_flash_bytes = 1u << exp;
+    else if (rx[1] != 0 && rx[1] != 0xff && exp == 0x19)
+        physical_flash_bytes = 16u << 20; /* 32 MiB chip: 16 MiB XIP aperture */
+}
+
 static uint32_t flash_size(void) {
-#ifdef Q2_FORCE_FLASH_MB	/* testing */
-    return Q2_FORCE_FLASH_MB << 20;
+#ifdef Q2_FORCE_FLASH_MB /* testing may reduce, never enlarge, the JEDEC limit */
+    uint32_t forced = (uint32_t)Q2_FORCE_FLASH_MB << 20;
+    return forced < physical_flash_bytes ? forced : physical_flash_bytes;
+#else
+    return physical_flash_bytes;
 #endif
-    const uint8_t *start = (const uint8_t *)XIP_NOCACHE_NOALLOC_BASE;
-    for (uint32_t size = 2u << 20; size < 16u << 20; size <<= 1)
-        if (!memcmp(start, start + size, 4096)) return size;
-    return 16u << 20;
 }
 
 static uint32_t assets_size; /* flash_size() - Q2_ASSETS_OFFSET */
@@ -142,7 +159,9 @@ static void patch(uint32_t offset, const uint8_t *data, int size) {
 static int write_cb(void *ctx, int offset, const void *data, int size) {
     writer_t *w = ctx;
     const uint8_t *p = data;
-    if (offset < 0 || (uint32_t)offset + (uint32_t)size > ASSETS_SIZE) return 0;
+    /* Bounds-check without a signed/unsigned addition that can wrap. */
+    if (offset < 0 || size < 0 || (uint32_t)offset > ASSETS_SIZE ||
+        (uint32_t)size > ASSETS_SIZE - (uint32_t)offset) return 0;
     if (offset / (int)SECTOR < w->written) {
         flush(w);
         patch((uint32_t)offset, p, size);
@@ -178,15 +197,21 @@ static void progress_cb(void *ctx, int done, int total) {
 int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     const void *base = (const void *)(XIP_BASE + Q2_ASSETS_OFFSET);
     uint32_t flash = flash_size();
-    q2_con_printf("Flash: %lu MB\n", (unsigned long)(flash >> 20));
-    if (flash <= Q2_ASSETS_OFFSET + (1u << 20)) {
-        /* 2 MB: no room for the image next to the firmware */
-        q2_con_highlight("Flash too small for the models and skins image\n");
+    if (!flash) {
+        q2_con_error("Flash JEDEC ID %06lX: unknown capacity; asset writes disabled.\n",
+                     (unsigned long)flash_jedec_id);
+        return 0;
+    }
+    q2_con_printf("Flash: %lu MiB (JEDEC %06lX), firmware 0x%lX\n",
+                  (unsigned long)(flash >> 20), (unsigned long)flash_jedec_id,
+                  (unsigned long)Q2_ASSETS_OFFSET);
+    if (flash <= Q2_ASSETS_OFFSET + SECTOR) {
+        q2_con_error("Flash too small: no space for the model/skin image.\n");
         return 0;
     }
     assets_size = flash - Q2_ASSETS_OFFSET;
-    if (flash < (16u << 20))
-        q2_con_highlight("%lu MB flash: the biggest models load to PSRAM.\n", (unsigned long)(flash >> 20));
+    q2_con_printf("Flash asset partition: %lu KiB available\n",
+                  (unsigned long)(assets_size >> 10));
     FILE *flag = fopen(rebuild_flag, "rb");
     bool forced = flag != NULL;
     if (flag) fclose(flag);
@@ -200,15 +225,27 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     writer_t w = {.sector = -1, .percent = -1, .t0 = time_us_32()};
     q2_con_printf("  reading the paks   ");
     assetwriter_t writer = {write_cb, progress_cb, &w};
-    int n = Q_Assets_Build(gamedir, ASSETS_SIZE, &writer);
+    asset_build_stats_t stats = {0};
+    int n = Q_Assets_Build(gamedir, ASSETS_SIZE, &writer, &stats);
     flush(&w);
     if (n < 0) {
         q2_con_error("\nFailed: the game runs without them (big maps may run out of memory).\n");
+        if (stats.skipped_capacity)
+            q2_con_error("Flash insufficient: need %lu KiB, available %lu KiB.\n",
+                         (unsigned long)((stats.required_bytes + 1023) / 1024),
+                         (unsigned long)(ASSETS_SIZE >> 10));
         return 0;
     }
     if (forced) remove(rebuild_flag);
+    if (stats.skipped_capacity) {
+        q2_con_error("\nFLASH FULL: need %lu KiB, available %lu KiB; %d assets omitted.\n",
+                     (unsigned long)((stats.required_bytes + 1023) / 1024),
+                     (unsigned long)(ASSETS_SIZE >> 10), stats.skipped_capacity);
+        q2_con_highlight("First omitted: %s (loaded from SD into PSRAM).\n",
+                         stats.first_skipped);
+    }
     q2_con_printf("\nDone: %d files in %lu s. Restarting...\n", n,
                   (unsigned long)((time_us_32() - w.t0) / 1000000));
-    sleep_ms(1500);
+    sleep_ms(stats.skipped_capacity ? 5000 : 1500);
     platform_reboot(false);
 }

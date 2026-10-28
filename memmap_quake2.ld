@@ -18,7 +18,11 @@
 
 MEMORY
 {
-    INCLUDE "pico_flash_region.ld"
+    /* The Pico SDK's FLASH region describes the whole flash chip (or a
+     * board-header default).  Here it must cover *only firmware*; remaining
+     * capacity belongs to the asset image.  Do not use pico_override_flash_size:
+     * that would also reduce the hardware_flash erase/programming limit. */
+    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = __q2_assets_offset
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 512k - 32k
     STACK_RAM(rwx) : ORIGIN = 0x20078000, LENGTH = 32k
     PSRAM(rwx) : ORIGIN = 0x11000000, LENGTH = 8192k

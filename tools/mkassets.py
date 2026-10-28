@@ -7,8 +7,9 @@ The models (MD2, without the OpenGL command lists) and the model skins
 partition: the engine maps the partition and uses them in place, without
 copying them to PSRAM. What does not fit is loaded from the PAK files as usual.
 
-usage: mkassets.py [--size BYTES] OUT.bin PAK...   (PAKs in search order: pak2 pak1 pak0)
-       then: ./flash.sh assets OUT.bin   (picotool, at 0x101C0000)
+usage: mkassets.py [--flash-mb 2|4|8|16] [--size BYTES] OUT.bin PAK...
+       (PAKs in search order: pak2 pak1 pak0)
+       then: ./flash.sh assets OUT.bin   (picotool, at 0x10100000)
 
 Image format (little endian):
   header:  "Q2AS", version (1), number of entries, directory offset
@@ -20,7 +21,8 @@ import argparse
 import struct
 import sys
 
-PARTITION_SIZE = 0x1000000 - 0x1C0000   # 16 MB flash - Q2_ASSETS_OFFSET
+PARTITION_OFFSET = 0x100000               # same as CMake Q2_ASSETS_OFFSET
+PARTITION_SIZE = (16 << 20) - PARTITION_OFFSET
 ALIGN = 16
 IN_PSRAM = {"models/monsters/boss3/jorg/tris.md2"}
 
@@ -93,10 +95,18 @@ def decode_pcx(data):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--size", type=lambda x: int(x, 0), default=PARTITION_SIZE)
+    ap.add_argument("--flash-mb", type=int, choices=(2, 4, 8, 16), default=None,
+                    help="physical flash size in MiB (required unless --size is given)")
+    ap.add_argument("--size", type=lambda x: int(x, 0), default=None,
+                    help="explicit asset capacity in bytes (overrides --flash-mb)")
     ap.add_argument("out")
     ap.add_argument("paks", nargs="+")
     args = ap.parse_args()
+    if args.size is None and args.flash_mb is None:
+        ap.error("specify the target chip with --flash-mb 2/4/8/16 or --size")
+    args.size = args.size if args.size is not None else (args.flash_mb << 20) - PARTITION_OFFSET
+    if args.size <= 0 or args.size > PARTITION_SIZE:
+        ap.error("asset capacity must be between 1 and %d bytes" % PARTITION_SIZE)
     files = read_paks(args.paks)
     candidates = []
     for name, entry in files.items():
@@ -125,6 +135,22 @@ def main():
         stored[data] = True
         used += need
     entries.sort(key=lambda e: e[0])
+    # The PAK files stay on SD; only converted models and skins use this space.
+    required = 16
+    unique_blobs = set()
+    for name, data in candidates:
+        if name in IN_PSRAM:
+            continue
+        required += 64
+        if data not in unique_blobs:
+            required += (len(data) + ALIGN - 1) // ALIGN * ALIGN
+            unique_blobs.add(data)
+    kept_names = {name for name, _ in entries}
+    omitted = [name for name, _ in candidates if name not in IN_PSRAM and name not in kept_names]
+    if omitted:
+        print("FLASH FULL: need %d KiB, available %d KiB; %d assets omitted; first: %s" %
+              ((required + 1023) // 1024, args.size // 1024, len(omitted), omitted[0]),
+              file=sys.stderr)
     dir_size = 64 * len(entries)
     offset = (16 + dir_size + ALIGN - 1) // ALIGN * ALIGN
     directory = bytearray()

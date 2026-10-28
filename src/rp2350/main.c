@@ -97,6 +97,10 @@ static void map_assets(void) {
 }
 
 int main(void) {
+    extern void q2_assets_probe_flash(void);
+    /* SPI NOR JEDEC ID must be read at the boot clock, before core 1 and
+     * the QMI PSRAM are started. No flash commands during game runtime. */
+    q2_assets_probe_flash();
     platform_init_clocks();
     platform_report_previous_crash();
     platform_init_psram();

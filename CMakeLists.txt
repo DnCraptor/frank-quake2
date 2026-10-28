@@ -27,7 +27,7 @@ cmake_minimum_required(VERSION 3.13)
 # M2: Murmulator 2 (HSTX HDMI on GPIO 12-19, I2S DAC on 9-11, SD on SPI0).
 # Z0: Waveshare RP2350-PiZero (PIO HDMI on GPIO 32-39, an I2S module on
 #     10-12, SD on SPI1).
-set(BOARD_VARIANT "M1" CACHE STRING "Board: M1, M2 or Z0")
+set(BOARD_VARIANT "M2" CACHE STRING "Board: M1, M2 or Z0")
 set_property(CACHE BOARD_VARIANT PROPERTY STRINGS M1 M2 Z0)
 if(BOARD_VARIANT STREQUAL "M1")
     set(PICO_BOARD frank_m1_rp2350b)
@@ -55,7 +55,7 @@ set(PSRAM_RXDELAY "${PSRAM_RXDELAY_DEFAULT}" CACHE STRING "PSRAM read sampling d
 set(FLASH_SPEED "126" CACHE STRING "Flash chip max frequency in MHz")
 set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: derived from the clock)")
 # The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
-set(Q2_ASSETS_OFFSET "0x1C0000" CACHE STRING "Flash offset of the asset image")
+set(Q2_ASSETS_OFFSET "0x100000" CACHE STRING "Flash offset of the asset image (default 1 MiB)")
 set(Q2_SAMPLE_RATE "11025" CACHE STRING "Sound output rate: 11025 or 22050")
 # One output per build: I2S (the board's DAC, GPIO 9-11) or HDMI audio
 # (44.1 kHz data islands, 4x the 11025 Hz mix)
@@ -346,7 +346,7 @@ pico_enable_stdio_usb(frank-quake2 0)
 pico_enable_stdio_uart(frank-quake2 0)
 pico_add_extra_outputs(frank-quake2)
 
-# An ordinary IDE or CLI build produces a self-describing UF2 in bin/.
+# An ordinary IDE or CLI build produces a self-describing UF2 in bin/<CONFIG>/.
 # Keep the original build/frank-quake2.uf2 too (picotool / flash.sh).
 if(BOARD_VARIANT STREQUAL "M1")
     set(Q2_BIN_BOARD m1p2)
@@ -368,12 +368,12 @@ else()
     set(Q2_BIN_VOLT 1.50V)
 endif()
 set(Q2_BIN_FILENAME "${Q2_BIN_BOARD}-frank-quake2-${Q2_BIN_VIDEO}-${AUDIO_TYPE}-${CPU_SPEED}MHz-${Q2_BIN_VOLT}-P${PSRAM_SPEED}-F${FLASH_SPEED}-v${Q2_VERSION}.uf2")
-set(Q2_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+set(Q2_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin/$<CONFIG>")
 add_custom_command(TARGET frank-quake2 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${Q2_BIN_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_BINARY_DIR}/frank-quake2.uf2"
         "${Q2_BIN_DIR}/${Q2_BIN_FILENAME}"
-    COMMENT "Firmware: bin/${Q2_BIN_FILENAME}"
+    COMMENT "Firmware: bin/$<CONFIG>/${Q2_BIN_FILENAME}"
     VERBATIM
 )

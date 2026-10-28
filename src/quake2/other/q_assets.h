@@ -3,6 +3,8 @@
 #ifndef Q_ASSETS_H
 #define Q_ASSETS_H
 
+#include <stdint.h>
+
 // Uses the image at base (mapped flash), returns the number of assets (0: no valid image)
 int Q_Assets_Init (const void *base, int size);
 const void *QG_FindAsset (const char *name, int *size);
@@ -21,9 +23,17 @@ typedef struct
 	void	*ctx;
 } assetwriter_t;
 
+typedef struct
+{
+    uint64_t required_bytes;
+    int skipped_capacity;
+    char first_skipped[56];
+} asset_build_stats_t;
+
 // Builds the image from the PAK files of gamedir, at most capacity bytes. The first
 // bytes (the magic) are written last: an interrupted build is not taken for an image.
 // Returns the number of assets, -1 on error.
-int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w);
+int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
+                    asset_build_stats_t *stats);
 
 #endif

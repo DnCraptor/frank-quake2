@@ -42,8 +42,20 @@ static int Q_Assets_Valid (const void *base, int size)
 {
 	const assetheader_t *h = base;
 
-	return base && size >= (int)sizeof(*h) && !memcmp (h->magic, "Q2AS", 4) && (h->version == 1 || h->version == 2)
-		&& h->count >= 0 && h->diroffset + h->count * (int)sizeof(assetentry_t) <= size;
+	if (!base || size < (int)sizeof(*h) || memcmp(h->magic, "Q2AS", 4)
+		|| (h->version != 1 && h->version != 2) || h->count < 0)
+		return 0;
+	/* v1 images from mkassets.py use a 16-byte header; on-board v2 uses 32. */
+	int min_dir = h->version == 1 ? 16 : (int)sizeof(*h);
+	if (h->diroffset < min_dir || h->diroffset > size ||
+		h->count > (size - h->diroffset) / (int)sizeof(assetentry_t))
+		return 0;
+	const assetentry_t *dir = (const assetentry_t *)((const unsigned char *)base + h->diroffset);
+	for (int i = 0; i < h->count; i++)
+		if (dir[i].offset < 0 || dir[i].size < 0 ||
+			dir[i].offset > size || dir[i].size > size - dir[i].offset)
+			return 0;
+	return 1;
 }
 
 int Q_Assets_Init (const void *base, int size)
@@ -325,8 +337,10 @@ static int CompareName (const void *pa, const void *pb)
 	return strcmp (((const assetsrc_t *)pa)->name, ((const assetsrc_t *)pb)->name);
 }
 
-int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w)
+int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
+                    asset_build_stats_t *stats)
 {
+	if (stats) memset(stats, 0, sizeof(*stats));
 	paks_t paks;
 	assetsrc_t *src = NULL;
 	unsigned char *dirbuf = NULL, *data = NULL, *out = NULL;
@@ -403,6 +417,22 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w)
 		src[i].keep = 1;
 		used += need;
 	}
+    if (stats) {
+        uint64_t required = sizeof(assetheader_t);
+        for (i = 0; i < count; ++i) {
+            if (InPsram(src[i].name)) continue;
+            required += sizeof(assetentry_t) +
+                ((uint64_t)src[i].size + ASSET_ALIGN - 1) / ASSET_ALIGN * ASSET_ALIGN;
+            if (!src[i].keep) {
+                if (!stats->skipped_capacity) {
+                    memcpy(stats->first_skipped, src[i].name, sizeof(stats->first_skipped));
+                    stats->first_skipped[sizeof(stats->first_skipped) - 1] = 0;
+                }
+                ++stats->skipped_capacity;
+            }
+        }
+        stats->required_bytes = required;
+    }
 	for (i = j = 0; i < count; i++)
 		if (src[i].keep)
 			src[j++] = src[i];

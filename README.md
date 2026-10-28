@@ -67,6 +67,22 @@ is included in this repository or in the releases.
 - PSRAM at 504 / 4 = 126 MHz (the M2 runs it at 168, tuned there): somewhat
   slower until it is tuned on a Z0.
 
+## Flash capacity and partition
+
+Firmware is limited by the linker to **1 MiB** (offset `0x000000..0x0FFFFF`),
+independently of the physical SPI NOR capacity. The flash asset image starts
+at `0x00100000`, leaving 1/3/7/15 MiB for models/skins on 2/4/8/16 MiB chips.
+The firmware reads the chip's JEDEC ID at boot *before* initializing PSRAM
+or core 1; unknown/unrecognized densities disable asset writes safely.
+If not all converted models/skins fit, the boot panel reports the required
+and available capacity, number omitted and the first missing asset. Those
+resources are read from PAK files on the SD card into PSRAM as needed; the
+original PAK files are never copied wholesale to SPI NOR.
+After the partition move from `0x1C0000`, the on-board asset cache must
+be rebuilt once. External `mkassets.py` users must specify the target chip
+(`--flash-mb 2/4/8/16`, or an explicit `--size`). `flash.sh assets` now uses
+`0x10100000`.
+
 ## Models and skins in flash
 
 8 MB of PSRAM is not enough for the maps unless the models and their skins
@@ -136,8 +152,9 @@ Faster, blurrier textures (console or `/quake2/args.txt`): `sw_mipcap 2`
 (+9% in demo1) or `sw_mipscale 2` (+5%). `vsync 0` stops waiting for the
 page flip at 60 Hz: a few % faster, but the picture tears.
 
-A regular CMake/VS Code build writes `bin/<board>-frank-quake2-<video>-<audio>-<CPU>MHz-<voltage>-P<PSRAM>-F<flash>-v<version>.uf2`,
-for example `bin/m1p2-frank-quake2-PIO-I2S-504MHz-1.65V-P133-F126-v1.05.uf2`.
+A regular CMake/VS Code build writes to `bin/<build type>/`, e.g.
+`bin/Release/m1p2-frank-quake2-PIO-I2S-504MHz-1.65V-P133-F126-v1.05.uf2`
+(or `bin/MinSizeRel/` for that CMake configuration).
 The original `build/frank-quake2.uf2` is retained.
 
 Input: USB HID and PS/2 keyboard simultaneously. M1 uses GP0/1 for PS/2;
