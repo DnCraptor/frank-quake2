@@ -38,7 +38,7 @@
 #include "other/q_assets.h"
 
 #ifndef Q2_ASSETS_OFFSET
-#define Q2_ASSETS_OFFSET 0x100000
+#define Q2_ASSETS_OFFSET 0xE1000
 #endif
 
 static uint32_t physical_flash_bytes; /* 0 means unknown: never erase! */
@@ -114,9 +114,9 @@ static void __no_inline_not_in_flash_func(flash_op)(uint32_t offs, const uint8_t
     restore_interrupts(s);
 }
 
-static void flash_op_erase(uint32_t offs) {
+static void flash_op_erase(uint32_t offs, uint32_t size) {
     flash_op_prepare();
-    flash_op(offs, NULL, BLOCK);
+    flash_op(offs, NULL, size);
 }
 
 static void flash_op_program(uint32_t offs, const uint8_t *data, uint32_t size) {
@@ -126,8 +126,14 @@ static void flash_op_program(uint32_t offs, const uint8_t *data, uint32_t size) 
 
 static void erase_to(writer_t *w, uint32_t end) {
     while (w->erased < end) {
-        flash_op_erase(Q2_ASSETS_OFFSET + w->erased);
-        w->erased += BLOCK;
+        uint32_t offs = Q2_ASSETS_OFFSET + w->erased;
+        /* Flash writes start at 900 KiB (0xE1000): 4 KiB sectors up to
+         * the next 64 KiB boundary, then fast aligned 64 KiB blocks.
+         * Never erase outside the physically detected chip. */
+        uint32_t size = ((offs & (BLOCK - 1u)) == 0 &&
+                         ASSETS_SIZE - w->erased >= BLOCK) ? BLOCK : SECTOR;
+        flash_op_erase(offs, size);
+        w->erased += size;
     }
 }
 
@@ -238,14 +244,24 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     }
     if (forced) remove(rebuild_flag);
     if (stats.skipped_capacity) {
-        q2_con_error("\nFLASH FULL: need %lu KiB, available %lu KiB; %d assets omitted.\n",
-                     (unsigned long)((stats.required_bytes + 1023) / 1024),
-                     (unsigned long)(ASSETS_SIZE >> 10), stats.skipped_capacity);
-        q2_con_highlight("First omitted: %s (loaded from SD into PSRAM).\n",
-                         stats.first_skipped);
+        /* This occurs only when the asset image has to omit models/skins.
+         * Keep the result on screen: the original five-second delay made
+         * the actual shortage impossible to read during first boot. */
+        unsigned long need = (unsigned long)((stats.required_bytes + 1023) / 1024);
+        unsigned long available = (unsigned long)(ASSETS_SIZE >> 10);
+        unsigned long shortage = need > available ? need - available : 0;
+        q2_shell_error("FLASH CAPACITY", "Press any key / pad to restart");
+        q2_con_error("Not enough flash for the asset cache: short by %lu KiB.\n", shortage);
+        q2_con_printf("Required: %lu KiB; available: %lu KiB.\n", need, available);
+        q2_con_highlight("%d models/skins omitted; loaded from SD into PSRAM.\n",
+                         stats.skipped_capacity);
+        q2_con_printf("First omitted: %s\n", stats.first_skipped);
+        q2_con_printf("\nDone: %d files in %lu s.\n", n,
+                      (unsigned long)((time_us_32() - w.t0) / 1000000));
+        q2_halt(""); /* USB HID, PS/2 or NESpad button -> reboot */
     }
     q2_con_printf("\nDone: %d files in %lu s. Restarting...\n", n,
                   (unsigned long)((time_us_32() - w.t0) / 1000000));
-    sleep_ms(stats.skipped_capacity ? 5000 : 1500);
+    sleep_ms(1500);
     platform_reboot(false);
 }

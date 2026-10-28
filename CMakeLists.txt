@@ -55,7 +55,11 @@ set(PSRAM_RXDELAY "${PSRAM_RXDELAY_DEFAULT}" CACHE STRING "PSRAM read sampling d
 set(FLASH_SPEED "126" CACHE STRING "Flash chip max frequency in MHz")
 set(FLASH_RXDELAY "5" CACHE STRING "Flash read sampling delay override (empty: derived from the clock)")
 # The model/skin image (tools/mkassets.py) is flashed here; the firmware must end below it.
-set(Q2_ASSETS_OFFSET "0x100000" CACHE STRING "Flash offset of the asset image (default 1 MiB)")
+set(Q2_ASSETS_OFFSET "0xE1000" CACHE STRING "Flash offset of the asset image (default 900 KiB)")
+# Migrate the old 1 MiB default kept in an existing CMakeCache.txt.
+if(Q2_ASSETS_OFFSET STREQUAL "0x100000")
+    set(Q2_ASSETS_OFFSET "0xE1000" CACHE STRING "Flash offset of the asset image (default 900 KiB)" FORCE)
+endif()
 set(Q2_SAMPLE_RATE "11025" CACHE STRING "Sound output rate: 11025 or 22050")
 # One output per build: I2S (the board's DAC, GPIO 9-11) or HDMI audio
 # (44.1 kHz data islands, 4x the 11025 Hz mix)

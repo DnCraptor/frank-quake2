@@ -9,7 +9,7 @@ copying them to PSRAM. What does not fit is loaded from the PAK files as usual.
 
 usage: mkassets.py [--flash-mb 2|4|8|16] [--size BYTES] OUT.bin PAK...
        (PAKs in search order: pak2 pak1 pak0)
-       then: ./flash.sh assets OUT.bin   (picotool, at 0x10100000)
+       then: ./flash.sh assets OUT.bin   (picotool, at 0x100E1000)
 
 Image format (little endian):
   header:  "Q2AS", version (1), number of entries, directory offset
@@ -21,7 +21,7 @@ import argparse
 import struct
 import sys
 
-PARTITION_OFFSET = 0x100000               # same as CMake Q2_ASSETS_OFFSET
+PARTITION_OFFSET = 0xE1000                # same as CMake Q2_ASSETS_OFFSET (900 KiB)
 PARTITION_SIZE = (16 << 20) - PARTITION_OFFSET
 ALIGN = 16
 IN_PSRAM = {"models/monsters/boss3/jorg/tris.md2"}

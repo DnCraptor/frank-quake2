@@ -7,7 +7,7 @@
 #   ./flash.sh assets FILE.bin     the model/skin image from tools/mkassets.py
 #
 set -e
-ASSETS_ADDR=${ASSETS_ADDR:-0x10100000}   # XIP base + Q2_ASSETS_OFFSET (1 MiB)
+ASSETS_ADDR=${ASSETS_ADDR:-0x100E1000}   # XIP base + Q2_ASSETS_OFFSET (900 KiB)
 
 if [ "$1" = "assets" ]; then
     [ -f "$2" ] || { echo "usage: $0 assets FILE.bin"; exit 1; }

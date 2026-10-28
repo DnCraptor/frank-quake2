@@ -69,9 +69,9 @@ is included in this repository or in the releases.
 
 ## Flash capacity and partition
 
-Firmware is limited by the linker to **1 MiB** (offset `0x000000..0x0FFFFF`),
+Firmware is limited by the linker to **900 KiB** (offset `0x000000..0x0E0FFF`),
 independently of the physical SPI NOR capacity. The flash asset image starts
-at `0x00100000`, leaving 1/3/7/15 MiB for models/skins on 2/4/8/16 MiB chips.
+at `0x000E1000`, leaving 1148/3196/7292/15484 KiB for models/skins on 2/4/8/16 MiB chips.
 The firmware reads the chip's JEDEC ID at boot *before* initializing PSRAM
 or core 1; unknown/unrecognized densities disable asset writes safely.
 If not all converted models/skins fit, the boot panel reports the required
@@ -81,7 +81,7 @@ original PAK files are never copied wholesale to SPI NOR.
 After the partition move from `0x1C0000`, the on-board asset cache must
 be rebuilt once. External `mkassets.py` users must specify the target chip
 (`--flash-mb 2/4/8/16`, or an explicit `--size`). `flash.sh assets` now uses
-`0x10100000`.
+`0x100E1000`.
 
 ## Models and skins in flash
 
