@@ -74,6 +74,7 @@ typedef struct image_s
 } image_t;
 
 byte	*R_ImagePixels (image_t *image, int mip);	// ESP32: reads the texture again if needed
+byte	*R_SkinPixels (image_t *image);	// loads a non-flash PCX skin on first use / after eviction
 
 
 //===================================================================

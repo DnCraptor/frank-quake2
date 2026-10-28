@@ -4,6 +4,7 @@
 #define Q_ASSETS_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 // Uses the image at base (mapped flash), returns the number of assets (0: no valid image)
 int Q_Assets_Init (const void *base, int size);
@@ -21,6 +22,7 @@ typedef struct
 	int		(*write) (void *ctx, int offset, const void *data, int size);
 	void	(*progress) (void *ctx, int done, int total);
 	void	*ctx;
+	FILE	*log;  // optional CSV placement report on SD
 } assetwriter_t;
 
 typedef struct

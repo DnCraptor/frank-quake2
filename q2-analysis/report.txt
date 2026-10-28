@@ -1,0 +1,42 @@
+Quake II offline PAK/BSP/MD2 groups
+Maps: 47; PAK entries: 3386; game C functions indexed: 989
+Flash: 4 MiB; firmware reserve: 900 KiB; asset capacity: 3272704 bytes
+Placement CSV: C:\Pico\murmulator\frank-quake2\bin\Release\assets-placement.csv
+Game sources: C:\Pico\murmulator\frank-quake2\src\quake2\game
+Globally shared model+skin resources (intersection): 62
+BSP changelevel transitions: 86
+Complete known converted model/skin set fits the flash per-map: 0 of 47 (unknown sizes prevent confirmation)
+Intersection converted bytes: 846700
+Largest per-map known MD2+PCX PSRAM demands with the current Flash placement:
+  fact1              5,899,020 B (5.626 MiB), per-map flash 5,973,488 B, assets 150, unknown sizes 6, unknown classes 0
+  jail3              5,655,756 B (5.394 MiB), per-map flash 6,258,208 B, assets 162, unknown sizes 6, unknown classes 0
+  city3              5,562,140 B (5.304 MiB), per-map flash 6,165,664 B, assets 177, unknown sizes 6, unknown classes 0
+  waste1             5,527,736 B (5.272 MiB), per-map flash 6,130,400 B, assets 165, unknown sizes 6, unknown classes 0
+  jail2              5,472,820 B (5.219 MiB), per-map flash 6,075,280 B, assets 162, unknown sizes 6, unknown classes 0
+  fact2              5,209,712 B (4.968 MiB), per-map flash 5,811,552 B, assets 153, unknown sizes 6, unknown classes 0
+  command            5,027,600 B (4.795 MiB), per-map flash 5,601,760 B, assets 154, unknown sizes 6, unknown classes 0
+  cool1              4,825,364 B (4.602 MiB), per-map flash 4,927,872 B, assets 154, unknown sizes 6, unknown classes 0
+  ware2              4,782,308 B (4.561 MiB), per-map flash 5,384,032 B, assets 152, unknown sizes 6, unknown classes 0
+  jail5              4,765,568 B (4.545 MiB), per-map flash 5,366,928 B, assets 146, unknown sizes 6, unknown classes 0
+  waste2             4,729,608 B (4.511 MiB), per-map flash 4,831,856 B, assets 150, unknown sizes 6, unknown classes 0
+  city2              4,687,900 B (4.471 MiB), per-map flash 5,290,160 B, assets 159, unknown sizes 6, unknown classes 0
+  city1              4,647,088 B (4.432 MiB), per-map flash 5,249,344 B, assets 159, unknown sizes 6, unknown classes 0
+  waste3             4,638,556 B (4.424 MiB), per-map flash 5,240,464 B, assets 154, unknown sizes 6, unknown classes 0
+  jail4              4,549,640 B (4.339 MiB), per-map flash 5,123,488 B, assets 150, unknown sizes 6, unknown classes 0
+  mine1              4,549,324 B (4.339 MiB), per-map flash 4,651,648 B, assets 151, unknown sizes 6, unknown classes 0
+  base3              4,528,292 B (4.319 MiB), per-map flash 4,631,184 B, assets 159, unknown sizes 6, unknown classes 0
+  train              4,494,252 B (4.286 MiB), per-map flash 4,597,536 B, assets 165, unknown sizes 6, unknown classes 0
+  mintro             4,493,100 B (4.285 MiB), per-map flash 4,595,392 B, assets 151, unknown sizes 6, unknown classes 0
+  strike             4,426,300 B (4.221 MiB), per-map flash 4,500,416 B, assets 145, unknown sizes 6, unknown classes 0
+  lab                4,394,192 B (4.191 MiB), per-map flash 4,467,680 B, assets 136, unknown sizes 6, unknown classes 0
+  power1             4,365,536 B (4.163 MiB), per-map flash 5,454,080 B, assets 148, unknown sizes 6, unknown classes 0
+  mine3              4,306,172 B (4.107 MiB), per-map flash 4,908,032 B, assets 153, unknown sizes 6, unknown classes 0
+  mine2              4,286,816 B (4.088 MiB), per-map flash 4,360,544 B, assets 139, unknown sizes 6, unknown classes 0
+  hangar2            4,265,880 B (4.068 MiB), per-map flash 5,060,832 B, assets 151, unknown sizes 6, unknown classes 0
+
+LIMITATIONS: This is a lower bound for MD2/PCX bytes, NOT the peak PSRAM demand.
+BSP geometry expansion, WAL textures/mipmaps, game state, heap fragmentation, sound,
+runtime level transitions/spawn conditions, dynamic entity spawns, client models,
+and allocations outside these assets are not included.
+C source cross-function dynamic expressions cannot be exhaustively evaluated.
+A result below 8 MiB DOES NOT prove that a level fits 8 MiB PSRAM.

@@ -925,7 +925,11 @@ Q2_COLD static qboolean R_AliasSetupSkin (void)
 	if ( !pskindesc )
 		return false;
 
-	r_affinetridesc.pskin = pskindesc->pixels[0];
+	// Keep image_t stable across evictions: models and entities hold its address.
+	// A non-flash skin's pixels are loaded only when it is actually drawn.
+	r_affinetridesc.pskin = R_SkinPixels (pskindesc);
+	if (!r_affinetridesc.pskin)
+		return false;
 	r_affinetridesc.skinwidth = pskindesc->width;
 	r_affinetridesc.skinheight = pskindesc->height;
 

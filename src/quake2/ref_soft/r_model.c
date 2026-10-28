@@ -1332,6 +1332,9 @@ void R_BeginRegistration (char *model)
 	char	fullname[MAX_QPATH];
 	cvar_t	*flushmap;
 
+	// Report the completed map's lazy skin cache activity at the next
+	// registration boundary. No per-frame SD logging.
+	{ extern void R_SkinCacheStats (void); R_SkinCacheStats (); }
 	registration_sequence++;
 	r_oldviewcluster = -1;		// force markleafs
 	Com_sprintf (fullname, sizeof(fullname), "maps/%s.bsp", model);
@@ -1425,6 +1428,7 @@ void R_EndRegistration (void)
 	}
 
 	R_FreeUnusedImages ();
+	{ extern void R_PreloadSkinsIfRoom (void); R_PreloadSkinsIfRoom (); }
 }
 
 

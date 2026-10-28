@@ -5,7 +5,8 @@
 //
 // Image format (little endian):
 //   header:  "Q2AS", version, number of entries, directory offset;
-//            version 2 (built on the board): PAK fingerprint, padding to 32 bytes
+//            version 2/3 (built on the board): PAK fingerprint, padding to 32 bytes
+//            version 3: verified model/skin priorities, then best-effort extras
 //   entries: name (56 bytes, lower case, sorted), offset, size
 //   data:    16-byte aligned. Models: MD2 without the OpenGL commands. Skins: width,
 //            height (uint16), transparent (uint8), 3 padding bytes, then the pixels.
@@ -43,7 +44,7 @@ static int Q_Assets_Valid (const void *base, int size)
 	const assetheader_t *h = base;
 
 	if (!base || size < (int)sizeof(*h) || memcmp(h->magic, "Q2AS", 4)
-		|| (h->version != 1 && h->version != 2) || h->count < 0)
+		|| (h->version != 1 && h->version != 2 && h->version != 3) || h->count < 0)
 		return 0;
 	/* v1 images from mkassets.py use a 16-byte header; on-board v2 uses 32. */
 	int min_dir = h->version == 1 ? 16 : (int)sizeof(*h);
@@ -105,9 +106,7 @@ files are stored twice: the data is written while it is read)
 ==============================================================================
 */
 
-// left out: Jorg is only on boss2, which has room for it; the Makron (on boss1 and
-// boss2) then fits in flash
-static const char *in_psram[] = { "models/monsters/boss3/jorg/tris.md2", NULL };
+// No hardcoded PSRAM exclusions: measured files first, then extras.
 
 typedef struct
 {
@@ -117,6 +116,8 @@ typedef struct
 	int		skin;			// PCX skin, else MD2 model
 	int		size;			// in the image
 	int		order;			// in the PAK files (stable sort)
+	int		paknum;			// pakN.pak source
+	int		rank;			// largest-first selection priority
 	int		keep;
 	int		offset;
 } assetsrc_t;
@@ -124,8 +125,35 @@ typedef struct
 typedef struct
 {
 	FILE	*f[MAX_PAKS];
+	int		paknum[MAX_PAKS];
 	int		count;
 } paks_t;
+
+/* CSV rows are generated before flash programming. SKIP rows describe the
+ * selection, PLACE rows the final name-sorted image layout. A final status
+ * record, written by the platform, says whether programming succeeded. */
+static void AssetLog (FILE *log, const char *status, const char *reason,
+                      const assetsrc_t *a)
+{
+	if (!log) return;
+	int allocated = a->size > 0 ? (int)sizeof(assetentry_t) +
+		(a->size + ASSET_ALIGN - 1) / ASSET_ALIGN * ASSET_ALIGN : 0;
+	fprintf (log, "%s,%s,%d,%s,%d,%d,%d,%d,%d,",
+		status, reason, a->rank, a->skin ? "PCX" : "MD2", a->paknum,
+		a->pakofs, a->paksize, a->size, allocated);
+	if (a->keep) {
+		fprintf (log, "%d,0x%08lX,", a->offset,
+			(unsigned long)(Q2_ASSETS_OFFSET + (uint32_t)a->offset));
+	} else {
+		fputs (",,", log);
+	}
+	fputc ('"', log);
+	for (unsigned i = 0; i < sizeof(a->name) && a->name[i]; i++) {
+		if (a->name[i] == '"') fputc ('"', log);
+		fputc (a->name[i], log);
+	}
+	fputs ("\"\n", log);
+}
 
 static int RdInt (const unsigned char *p)
 {
@@ -160,6 +188,7 @@ static void OpenPaks (const char *gamedir, paks_t *paks)
 		if (f)
 		{
 			setvbuf (f, NULL, _IOFBF, 16384);	// the default (128 bytes) is very slow on the SD card
+			paks->paknum[paks->count] = i;
 			paks->f[paks->count++] = f;
 		}
 	}
@@ -222,7 +251,10 @@ int Q_Assets_Current (const void *base, int size, unsigned key)
 {
 	const assetheader_t *h = base;
 
-	return Q_Assets_Valid (base, size) && (h->version == 1 || h->key == key);
+	// v2 on-board images used largest-first: rebuild to apply the measured
+	// priorities even when the PAK files themselves have not changed.
+	return Q_Assets_Valid (base, size) && (h->version == 1 ||
+		(h->version == 3 && h->key == key));
 }
 
 static int Wanted (const char *name)
@@ -236,15 +268,6 @@ static int Wanted (const char *name)
 	return 0;
 }
 
-static int InPsram (const char *name)
-{
-	int i;
-
-	for (i = 0; in_psram[i]; i++)
-		if (!strcmp (name, in_psram[i]))
-			return 1;
-	return 0;
-}
 
 // size of the asset in the image from the header of the file, 0 if it is not stored
 static int AssetSize (assetsrc_t *a)
@@ -320,13 +343,31 @@ static void Convert (const assetsrc_t *a, unsigned char *data, unsigned char *ou
 		}
 }
 
+// Known-good 4 MiB placement was measured from the real campaign PAKs,
+// BSP sizes and WAL mip usage. A changed file of the same name but different
+// converted size is treated as a custom asset, not a verified priority.
+static const struct { const char *name; int bytes; } known_assets[] = {
+#include "q_assets_priority.inc"
+};
+
+static int KnownPriority (const assetsrc_t *a)
+{
+	for (unsigned i = 0; i < sizeof(known_assets)/sizeof(known_assets[0]); ++i)
+		if (a->size == known_assets[i].bytes &&
+			!strcmp (a->name, known_assets[i].name))
+			return (int)i;
+	return -1;
+}
+
 static int CompareSize (const void *pa, const void *pb)
 {
 	const assetsrc_t *a = pa, *b = pb;
-	int ia = InPsram (a->name), ib = InPsram (b->name);
-
-	if (ia != ib)
+	int ia = KnownPriority (a), ib = KnownPriority (b);
+	if ((ia >= 0) != (ib >= 0))
+		return ia >= 0 ? -1 : 1;
+	if (ia >= 0 && ib >= 0)
 		return ia - ib;
+	// Modified / third-party PAK assets only use the remaining space.
 	if (a->size != b->size)
 		return a->size > b->size ? -1 : 1;
 	return a->order - b->order;
@@ -387,6 +428,7 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 			memset (a, 0, sizeof(*a));
 			strncpy (a->name, name, sizeof(a->name));
 			a->pak = paks.f[i];
+			a->paknum = paks.paknum[i];
 			a->pakofs = RdInt (dir + j * 64 + 56);
 			a->paksize = RdInt (dir + j * 64 + 60);
 			a->skin = Wanted (name) == 2;
@@ -395,22 +437,26 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 		}
 		free (dir);
 	}
-	// sizes in the image (from the headers), then select the largest resources that fit.
-	// Smaller ones can fill any remaining space; forced PSRAM assets stay out
+	// First include verified files with measured size (priority order), then
+	// use remaining capacity for any other MD2/PCX in the PAKs.
 	for (i = j = 0; i < count; i++)
 	{
 		src[i].size = AssetSize (&src[i]);
 		if (src[i].size)
 			src[j++] = src[i];
+		else
+			AssetLog (w->log, "SKIP", "INVALID_HEADER", &src[i]);
 	}
 	count = j;
 	qsort (src, count, sizeof(*src), CompareSize);
 	int used = sizeof(assetheader_t);
 	for (i = 0; i < count; i++)
 	{
+		src[i].rank = i + 1;
 		int need = sizeof(assetentry_t) + (src[i].size + ASSET_ALIGN - 1) / ASSET_ALIGN * ASSET_ALIGN;
-		if (InPsram (src[i].name) || used + need > capacity)
+		if (used + need > capacity)
 		{
+			AssetLog (w->log, "SKIP", "NO_SPACE", &src[i]);
 			printf ("not stored: %s (%d kB)\n", src[i].name, src[i].size / 1024);
 			continue;
 		}
@@ -421,7 +467,6 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
         stats->used_bytes = (uint32_t)used;
         uint64_t required = sizeof(assetheader_t);
         for (i = 0; i < count; ++i) {
-            if (InPsram(src[i].name)) continue;
             required += sizeof(assetentry_t) +
                 ((uint64_t)src[i].size + ASSET_ALIGN - 1) / ASSET_ALIGN * ASSET_ALIGN;
             if (!src[i].keep) {
@@ -450,7 +495,7 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 		goto done;
 	assetheader_t *h = (assetheader_t *)dirbuf;
 	memset (h->magic, 0xff, 4);
-	h->version = 2;
+	h->version = 3;
 	h->count = kept;
 	h->diroffset = diroffset;
 	h->key = key;
@@ -465,7 +510,9 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 			datamax = src[i].paksize;
 		if (src[i].size > outmax)
 			outmax = src[i].size;
+		AssetLog (w->log, "PLACE", "", &src[i]);
 	}
+	if (w->log) fflush (w->log); /* retain the planned layout even if programming fails */
 	if (!w->write (w->ctx, 0, dirbuf, datastart))
 		goto done;
 

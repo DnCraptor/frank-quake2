@@ -628,8 +628,139 @@ byte *R_ImagePixels (image_t *image, int mip)
 	return image->pixels[mip];
 }
 
-// ESP32: frees the wall textures that were not used in this frame or the
-// previous one (called when an allocation fails)
+// Read PCX RLE directly from a PAK entry using a bounded buffer, without
+// allocating a second (compressed) copy of the image in PSRAM.
+typedef struct {
+	FILE *file;
+	int remaining, pos, end;
+	byte buf[512];
+} skinstream_t;
+
+static int R_SkinByte (skinstream_t *s)
+{
+	if (s->pos == s->end)
+	{
+		if (s->remaining <= 0) return -1;
+		int n = s->remaining < (int)sizeof(s->buf) ? s->remaining : (int)sizeof(s->buf);
+		s->end = (int)fread(s->buf, 1, n, s->file);
+		s->remaining -= s->end;
+		s->pos = 0;
+		if (s->end <= 0) return -1;
+	}
+	return s->buf[s->pos++];
+}
+
+static unsigned skin_load_count, skin_evict_count, skin_eager_count;
+
+byte *R_SkinPixels (image_t *image)
+{
+	if (!image) return NULL;
+	if (image->type != it_skin) return image->pixels[0];
+	image->lastframe = r_framecount;
+	if (image->pixels[0]) return image->pixels[0];
+
+	FILE *f = NULL;
+	byte header[128];
+	int len = FS_FOpenFile (image->name, &f);
+	if (!f) return NULL;
+	if (len < 128 || fread (header, 1, 128, f) != 128 ||
+		header[0] != 0x0a || header[1] != 5 || header[2] != 1 || header[3] != 8 ||
+		1 + (header[8] | header[9] << 8) != image->width ||
+		1 + (header[10] | header[11] << 8) != image->height)
+	{
+		fclose (f);
+		return NULL;
+	}
+
+	int size = image->width * image->height;
+	byte *pic = Q_Arena_AllocTop (size);
+	if (!pic)
+	{
+		fclose (f);
+		return NULL; // keep descriptor for a later retry
+	}
+	memset (pic, 0, size);
+	skinstream_t stream = {.file = f, .remaining = len - 128};
+	for (int y = 0; y < image->height; y++)
+	{
+		for (int x = 0; x < image->width; )
+		{
+			int b = R_SkinByte (&stream), run = 1;
+			if (b < 0) goto broken;
+			if ((b & 0xc0) == 0xc0)
+			{
+				run = b & 0x3f;
+				b = R_SkinByte (&stream);
+				if (b < 0) goto broken;
+			}
+			// Match LoadPCX: an overlong run spills into the next row,
+			// where the following row may overwrite the spilled bytes.
+			for (int i = 0; i < run; i++, x++)
+				if (y * image->width + x < size)
+					pic[y * image->width + x] = (byte)b;
+		}
+	}
+	fclose (f);
+	image->pixels[0] = pic;
+	image->transparent = false;
+	for (int i = 0; i < size; i++)
+		if (pic[i] == 255) { image->transparent = true; break; }
+	r_image_bytes += Q_Arena_BlockSize (pic);
+	skin_load_count++;
+	return pic;
+
+broken:
+	fclose (f);
+	Q_Arena_Free (pic);
+	return NULL;
+}
+
+// Preload every referenced PCX skin only when ALL of them fit, retaining
+// a 512 KiB margin for sound, temp files, and other runtime allocations.
+// With tighter PSRAM the skins stay registered but are decoded on demand.
+void R_PreloadSkinsIfRoom (void)
+{
+	unsigned long long total = 0;
+	int missing = 0;
+	for (int i = 0; i < numr_images; i++)
+	{
+		image_t *im = &r_images[i];
+		if (im->registration_sequence != registration_sequence ||
+			im->type != it_skin || im->pixels[0]) continue;
+		total += ((((unsigned)im->width * (unsigned)im->height) + 15u) & ~15u) + 16u;
+		missing++;
+	}
+	if (!missing) return;
+	const int margin = 512 * 1024;
+	int free_now = Q_Arena_FreeSize (), largest = Q_Arena_Largest ();
+	if (total + margin > (unsigned)free_now || total + margin > (unsigned)largest)
+	{
+		ri.Con_Printf (PRINT_ALL, "PCX skins: %d deferred (%llu bytes), free %d largest %d\n",
+			missing, total, free_now, largest);
+		return;
+	}
+	int loaded = 0;
+	for (int i = 0; i < numr_images; i++)
+	{
+		image_t *im = &r_images[i];
+		if (im->registration_sequence == registration_sequence &&
+			im->type == it_skin && !im->pixels[0] && R_SkinPixels (im))
+			loaded++;
+	}
+	skin_eager_count += loaded;
+	ri.Con_Printf (PRINT_ALL, "PCX skins: %d/%d preloaded, free %d\n",
+		loaded, missing, Q_Arena_FreeSize ());
+}
+
+void R_SkinCacheStats (void)
+{
+	ri.Con_Printf (PRINT_ALL, "PCX cache: loads %u (preload %u), evictions %u\n",
+		skin_load_count, skin_eager_count, skin_evict_count);
+	skin_load_count = skin_evict_count = skin_eager_count = 0;
+}
+
+// Free inactive WAL or PCX skin pixel buffers on allocation pressure.
+// Flash-resident skins are mapped in XIP and are never evicted.
 void R_PurgeImages (void)
 {
 	int		i;
@@ -637,10 +768,15 @@ void R_PurgeImages (void)
 
 	for (i=0, image=r_images ; i<numr_images ; i++, image++)
 	{
-		// while a map is loaded nothing is drawn: all can be freed
-		if (image->type != it_wall || !image->pixels[image->minmip]
+		if ((image->type != it_wall && image->type != it_skin)
+			|| !image->pixels[image->minmip]
 			|| (!r_registering && image->lastframe >= r_framecount - 1))
 			continue;
+		// Unlike WAL, an MD2 skin can point directly into XIP Flash.
+		// Never clear those pixels, and never free a buffer in use this frame.
+		if (!Q_Arena_Contains (image->pixels[image->minmip]))
+			continue;
+		if (image->type == it_skin) skin_evict_count++;
 		R_FreeImagePixels (image);
 		image->pixels[0] = image->pixels[1] = image->pixels[2] = image->pixels[3] = NULL;
 	}
@@ -688,7 +824,7 @@ static image_t *R_FindImage_ (char *name, imagetype_t type)
 #ifdef PLATFORM_RP2350
 found:
 #endif
-			if (!image->pixels[0] && image->type != it_wall)
+			if (!image->pixels[0] && image->type != it_wall && image->type != it_skin)
 			{
 				// was flushed by an early free: reclaim the slot and reload
 				memset (image, 0, sizeof(*image));
@@ -731,6 +867,33 @@ found:
 	}
 	else if (!strcmp(name+len-4, ".pcx"))
 	{
+		if (type == it_skin)
+		{
+			// The file may be in a custom PAK: validate and read only its
+			// PCX header now. Decode pixels on the first actual draw.
+			FILE *f = NULL;
+			byte hdr[128];
+			int n = FS_FOpenFile (name, &f);
+			int valid = n >= (int)sizeof(hdr) && f &&
+				fread (hdr, 1, sizeof(hdr), f) == sizeof(hdr);
+			if (f) fclose (f);
+			if (!valid || hdr[0] != 0x0a || hdr[1] != 5 ||
+				hdr[2] != 1 || hdr[3] != 8)
+				return NULL;
+			width  = 1 + hdr[8]  + (hdr[9]  << 8);
+			height = 1 + hdr[10] + (hdr[11] << 8);
+			if (width < 1 || width > 640 || height < 1 || height > 480)
+				return NULL;
+			image = R_FindFreeImage ();
+			memset (image, 0, sizeof(*image));
+			strcpy (image->name, name);
+			image->registration_sequence = registration_sequence;
+			image->type = it_skin;
+			image->width = width;
+			image->height = height;
+			image->lastframe = -2;
+			return image;
+		}
 		r_image_permanent = type == it_pic;
 		if (type == it_sky)
 			pic = R_LoadSkyPCX (name, &width, &height);

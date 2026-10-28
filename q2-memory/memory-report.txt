@@ -1,0 +1,49 @@
+Quake II RP2350 offline memory estimate from actual C allocation formulas
+Sources: cmodel.c:CM_LoadMap, r_model.c:Mod_LoadBrushModel, r_image.c:R_LoadWalPixels,
+r_surf.c:R_InitCaches, snd_dma.c:S_Init, snd_mem.c:S_CacheBudget, q_arena.c.
+Maps analyzed: 47; Flash selection: current only
+Static PSRAM reservation (including alignment): 1867776 bytes
+Largest static PSRAM modules in this ELF:
+    592,400 B CMakeFiles/quake2_core.dir/src/quake2/client/cl_main.c.obj
+    251,936 B CMakeFiles/quake2_core.dir/src/quake2/server/sv_init.c.obj
+    148,864 B CMakeFiles/quake2_core.dir/src/quake2/ref_soft/r_model.c.obj
+    134,424 B CMakeFiles/quake2_core.dir/src/quake2/client/cl_fx.c.obj
+     81,792 B CMakeFiles/quake2_core.dir/src/quake2/client/snd_dma.c.obj
+     70,560 B CMakeFiles/quake2_core.dir/src/quake2/ref_soft/r_edge.c.obj
+     67,368 B CMakeFiles/quake2_core.dir/src/quake2/ref_soft/r_main.c.obj
+     55,296 B CMakeFiles/quake2_core.dir/src/quake2/ref_soft/r_image.c.obj
+Linker FLASH asset offset in this map: 0xe1000 (900 KiB)
+Fixed surface cache: 262144 B; sound cache: 0..1572864 B; z-buffer PSRAM: 0 B
+Engine arena requests leave 196608 B of the PSRAM heap for other mallocs.
+NOTE: arena reserve is headroom, NOT automatically an additional occupied block.
+Resident BSP = CM static collision block + render Hunk, with shared planes and VIS counted once.
+WAL resident = requested mip data + 16 bytes of allocator header and alignment per unique texture.
+
+CURRENT: top maps by static inventory + BSP geometry + WAL + surface cache:
+  city3             9,707,468 B + static; BSP 3,373,728, WAL   509,456, MD2/PCX 5,562,140, left-no-sound -3186636 B
+  waste1            9,059,032 B + static; BSP 3,135,440, WAL   133,712, MD2/PCX 5,527,736, left-no-sound -2538200 B
+  fact1             8,996,412 B + static; BSP 2,569,936, WAL   265,312, MD2/PCX 5,899,020, left-no-sound -2475580 B
+  jail3             8,928,812 B + static; BSP 2,750,800, WAL   260,112, MD2/PCX 5,655,756, left-no-sound -2407980 B
+  command           8,739,824 B + static; BSP 3,223,696, WAL   226,384, MD2/PCX 5,027,600, left-no-sound -2218992 B
+  fact2             8,551,776 B + static; BSP 2,814,096, WAL   265,824, MD2/PCX 5,209,712, left-no-sound -2030944 B
+  lab               8,504,096 B + static; BSP 3,567,360, WAL   280,400, MD2/PCX 4,394,192, left-no-sound -1983264 B
+  jail2             8,400,772 B + static; BSP 2,383,424, WAL   282,384, MD2/PCX 5,472,820, left-no-sound -1879940 B
+  cool1             8,291,380 B + static; BSP 2,999,968, WAL   203,904, MD2/PCX 4,825,364, left-no-sound -1770548 B
+  mine1             8,247,228 B + static; BSP 3,160,176, WAL   275,584, MD2/PCX 4,549,324, left-no-sound -1726396 B
+  hangar2           8,224,936 B + static; BSP 3,382,864, WAL   314,048, MD2/PCX 4,265,880, left-no-sound -1704104 B
+  city1             8,186,112 B + static; BSP 2,866,640, WAL   410,240, MD2/PCX 4,647,088, left-no-sound -1665280 B
+
+
+LIMITATIONS / INTERPRETATION:
+* Model and skin sets come from the earlier static scanner: it can both overcount and undercount.
+* Six global C-text matches absent from the PAK are unresolved, not six allocated 0-byte files.
+* BSP allocations are computed from exact 32-bit struct sizes and source formulas; runtime headers may differ.
+* WAL: worst resident request for each unique map texture; many WALs can later be purged; no resident sound set inferred.
+* Dynamic sky PCX (up to six 128x128 faces), sprites, UI graphics, player skins, zone allocs,
+  savegame/game state, allocator fragmentation, dynamic spawns and per-load peak buffers are excluded.
+* Sound cache 0..configured budget is reclaimable; filled-cache numbers are a stress scenario, not constant occupancy.
+* Transient BSP lump buffer is separately listed; do NOT add every BSP source file byte to resident sums.
+* Server collision/cmodel allocations for the entity string can add temporary PSRAM; this is not counted.
+* Model/skin data actually loaded into PSRAM may include temporary duplication and alignment overhead.
+* Crossing 8 MiB in a scenario flags memory pressure, NOT an unconditional proof that a level fails.
+* For an accurate guarantee, instrument allocator peaks and fragmentation and correct static model dependencies.

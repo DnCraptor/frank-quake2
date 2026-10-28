@@ -1,0 +1,27 @@
+Quake II BSP PVS / WAL offline assessment
+PVS = potential spatial visibility, NOT exact simultaneously resident images.
+All brush inline submodel faces assumed visible at every cluster.
+All animation-chain frames included; one worst mip per WAL.
+Clusters are sampled independently; the engine can retain recent textures
+from a different PVS and dynamically loaded models are not included here.
+Flash scenario recomputed from tools\q2_4mb_flash_selection.csv (102 selected assets)
+Asset inventory: q2-analysis\map-assets.csv
+Scenario headroom requires the same PAK data and mipcap as --memory.
+Missing WALs are reported; they do not contribute a guessed size.
+city3            all=  509456 PVS-peak=  412368 headroom-pvs=-415524
+waste1           all=  133712 PVS-peak=  124544 headroom-pvs=50480
+lab              all=  280400 PVS-peak=  227568 headroom-pvs=112988
+fact1            all=  265312 PVS-peak=  194256 headroom-pvs=117372
+jail3            all=  260112 PVS-peak=  160256 headroom-pvs=141684
+hangar2          all=  314048 PVS-peak=  202880 headroom-pvs=220320
+command          all=  226384 PVS-peak=  161232 headroom-pvs=342680
+fact2            all=  265824 PVS-peak=  158096 headroom-pvs=378140
+boss2            all=  224448 PVS-peak=  131280 headroom-pvs=405812
+jail5            all=  253808 PVS-peak=  181904 headroom-pvs=456824
+city2            all=  364544 PVS-peak=  259040 headroom-pvs=507312
+city1            all=  410240 PVS-peak=  239488 headroom-pvs=526244
+jail2            all=  282384 PVS-peak=  167216 headroom-pvs=587100
+jail4            all=  264000 PVS-peak=  194576 headroom-pvs=849788
+power1           all=  232784 PVS-peak=  134720 headroom-pvs=852660
+
+

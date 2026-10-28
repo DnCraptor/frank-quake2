@@ -78,6 +78,18 @@ If not all converted models/skins fit, the boot panel reports the required
 and available capacity, number omitted and the first missing asset. Those
 resources are read from PAK files on the SD card into PSRAM as needed; the
 original PAK files are never copied wholesale to SPI NOR.
+
+On a cache rebuild (for example, create `/quake2/assets.rebuild` on the SD
+card and reboot), the firmware overwrites `/quake2/assets-placement.csv`.
+The CSV contains every eligible MD2/PCX resource: `PLACE` rows with the
+actual image and chip offsets, `SKIP/NO_SPACE` for capacity, `SKIP/FORCED_PSRAM`
+for deliberately excluded resources, and `SKIP/INVALID_HEADER` for malformed
+files. `priority` is the largest-first selection order; `source_bytes` is the
+original PAK entry length, `converted_bytes` is the image payload, and
+`allocated_bytes` includes a 64-byte directory entry and 16-byte padding.
+Comment lines beginning with `#` record partition geometry, byte totals
+and whether the build completed. If the cache is still valid and no rebuild
+is requested, the file is not touched.
 After the partition move from `0x1C0000`, the on-board asset cache must
 be rebuilt once. External `mkassets.py` users must specify the target chip
 (`--flash-mb 2/4/8/16`, or an explicit `--size`). `flash.sh assets` now uses

@@ -230,10 +230,35 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
     q2_con_highlight("Building the models and skins in flash from the paks (once, about 90 seconds)...\n");
     writer_t w = {.sector = -1, .percent = -1, .t0 = time_us_32()};
     q2_con_printf("  reading the paks   ");
-    assetwriter_t writer = {write_cb, progress_cb, &w};
+    FILE *log = fopen("/quake2/assets-placement.csv", "wb");
+    if (log) {
+        setvbuf(log, NULL, _IOFBF, 4096);
+        fprintf(log, "# frank-quake2 asset placement v1\n");
+        fprintf(log, "# algorithm=measured-priority,then-largest-first\n");
+        fprintf(log, "# physical_flash_bytes=%lu\n", (unsigned long)flash);
+        fprintf(log, "# assets_start=0x%lX\n", (unsigned long)Q2_ASSETS_OFFSET);
+        fprintf(log, "# assets_capacity_bytes=%lu\n", (unsigned long)ASSETS_SIZE);
+        fprintf(log, "# pak_source_key=0x%08lX\n", (unsigned long)key);
+        fprintf(log, "status,reason,priority,kind,pak,source_offset,source_bytes,converted_bytes,allocated_bytes,image_offset,flash_offset,name\n");
+    } else {
+        q2_con_highlight("Cannot create /quake2/assets-placement.csv (SD write failure)\n");
+    }
+    assetwriter_t writer = {write_cb, progress_cb, &w, log};
     asset_build_stats_t stats = {0};
     int n = Q_Assets_Build(gamedir, ASSETS_SIZE, &writer, &stats);
     flush(&w);
+    if (log) {
+        fprintf(log, "# result=%s\n", n >= 0 ? "OK" : "FAILED");
+        fprintf(log, "# required_bytes=%lu\n", (unsigned long)stats.required_bytes);
+        fprintf(log, "# selected_bytes=%lu\n", (unsigned long)stats.used_bytes);
+        fprintf(log, "# free_bytes=%lu\n", (unsigned long)(ASSETS_SIZE - stats.used_bytes));
+        fprintf(log, "# omitted_capacity=%d\n", stats.skipped_capacity);
+        fprintf(log, "# placed_count=%d\n", n >= 0 ? n : -1);
+        if (fclose(log) != 0)
+            q2_con_error("Failed to save /quake2/assets-placement.csv\n");
+        else
+            q2_con_highlight("Placement log: /quake2/assets-placement.csv\n");
+    }
     if (n < 0) {
         q2_con_error("\nFailed: the game runs without them (big maps may run out of memory).\n");
         if (stats.skipped_capacity)
