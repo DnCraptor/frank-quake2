@@ -116,11 +116,10 @@ def main():
             skin = decode_pcx(read_file(entry))
             if skin:
                 candidates.append((name, skin))
-    # keep the smallest assets when everything does not fit: the few big ones
-    # (boss models) are loaded in PSRAM on the maps that use them. The models
-    # in IN_PSRAM are left out first: Jorg is only on boss2, which has room
-    # for it, the Makron (on boss1 and boss2) then fits in flash.
-    candidates.sort(key=lambda c: (c[0] in IN_PSRAM, len(c[1])))
+    # Prefer large assets: their direct mapping from flash saves the most PSRAM.
+    # Always continue after a miss, so smaller assets can fill the remainder.
+    # IN_PSRAM is intentionally excluded (Jorg on boss2).
+    candidates.sort(key=lambda c: (c[0] in IN_PSRAM, -len(c[1])))
     entries = []
     stored = {}             # identical files are stored once
     used = 16
@@ -148,9 +147,11 @@ def main():
     kept_names = {name for name, _ in entries}
     omitted = [name for name, _ in candidates if name not in IN_PSRAM and name not in kept_names]
     if omitted:
-        print("FLASH FULL: need %d KiB, available %d KiB; %d assets omitted; first: %s" %
-              ((required + 1023) // 1024, args.size // 1024, len(omitted), omitted[0]),
-              file=sys.stderr)
+        deficit = max(0, required - args.size)
+        print("FLASH FULL: missing %d bytes, required %d, available %d; "
+              "stored %d, free %d; %d assets omitted; first: %s" %
+              (deficit, required, args.size, used, args.size - used,
+               len(omitted), omitted[0]), file=sys.stderr)
     dir_size = 64 * len(entries)
     offset = (16 + dir_size + ALIGN - 1) // ALIGN * ALIGN
     directory = bytearray()

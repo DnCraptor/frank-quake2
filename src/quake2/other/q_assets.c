@@ -328,7 +328,7 @@ static int CompareSize (const void *pa, const void *pb)
 	if (ia != ib)
 		return ia - ib;
 	if (a->size != b->size)
-		return a->size < b->size ? -1 : 1;
+		return a->size > b->size ? -1 : 1;
 	return a->order - b->order;
 }
 
@@ -395,8 +395,8 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 		}
 		free (dir);
 	}
-	// sizes in the image (from the headers), then keep the smallest when everything
-	// does not fit: the few big ones (boss models) are loaded in PSRAM
+	// sizes in the image (from the headers), then select the largest resources that fit.
+	// Smaller ones can fill any remaining space; forced PSRAM assets stay out
 	for (i = j = 0; i < count; i++)
 	{
 		src[i].size = AssetSize (&src[i]);
@@ -418,6 +418,7 @@ int Q_Assets_Build (const char *gamedir, int capacity, const assetwriter_t *w,
 		used += need;
 	}
     if (stats) {
+        stats->used_bytes = (uint32_t)used;
         uint64_t required = sizeof(assetheader_t);
         for (i = 0; i < count; ++i) {
             if (InPsram(src[i].name)) continue;

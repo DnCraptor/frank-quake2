@@ -247,12 +247,15 @@ int q2_assets_init(const char *gamedir, const char *rebuild_flag) {
         /* This occurs only when the asset image has to omit models/skins.
          * Keep the result on screen: the original five-second delay made
          * the actual shortage impossible to read during first boot. */
-        unsigned long need = (unsigned long)((stats.required_bytes + 1023) / 1024);
-        unsigned long available = (unsigned long)(ASSETS_SIZE >> 10);
-        unsigned long shortage = need > available ? need - available : 0;
+        unsigned long deficit = (unsigned long)(stats.required_bytes > ASSETS_SIZE ?
+            stats.required_bytes - ASSETS_SIZE : 0);
         q2_shell_error("FLASH CAPACITY", "Press any key / pad to restart");
-        q2_con_error("Not enough flash for the asset cache: short by %lu KiB.\n", shortage);
-        q2_con_printf("Required: %lu KiB; available: %lu KiB.\n", need, available);
+        q2_con_error("Missing: %lu bytes (%lu KiB)\n", deficit, (deficit + 1023) / 1024);
+        q2_con_printf("Required: %lu bytes\n", (unsigned long)stats.required_bytes);
+        q2_con_printf("Capacity: %lu bytes\n", (unsigned long)ASSETS_SIZE);
+        q2_con_printf("Stored: %lu bytes; free: %lu bytes\n",
+                      (unsigned long)stats.used_bytes,
+                      (unsigned long)(ASSETS_SIZE - stats.used_bytes));
         q2_con_highlight("%d models/skins omitted; loaded from SD into PSRAM.\n",
                          stats.skipped_capacity);
         q2_con_printf("First omitted: %s\n", stats.first_skipped);

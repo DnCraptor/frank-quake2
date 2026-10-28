@@ -26,6 +26,7 @@ typedef struct
 typedef struct
 {
     uint64_t required_bytes;
+    uint32_t used_bytes;
     int skipped_capacity;
     char first_skipped[56];
 } asset_build_stats_t;
